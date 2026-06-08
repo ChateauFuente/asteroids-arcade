@@ -42,6 +42,13 @@ Built iteratively in a single development channel; dates reflect that work
   exists at every bus count.
 
 ### Asteroids
+- **Black-hole gravity rescaled** to a 0–100% slider (default **15%**); 100% now
+  equals the old "really hard" ~30% setting, so the whole range is more usable.
+- **Black-hole % on the leaderboard:** black-hole scores record the gravity % and
+  show it in purple next to the score (e.g. `4340 (15%)`) — easy run vs. brutal.
+- **Spawn spacing:** the black hole now keeps clear of the ship, the center
+  respawn point, and the wormholes, so a new wave never drops it on top of you or
+  another object.
 - Hyperspace moved from **H** to the **Down arrow** (keeps the hand on the
   arrows + space).
 - Arcade-style pauses: ~1 s delay before a destroyed ship respawns, and ~2 s

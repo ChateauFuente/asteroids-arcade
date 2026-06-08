@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS scores (
   config     TEXT    NOT NULL,
   initials   TEXT    NOT NULL,
   score      INTEGER NOT NULL,
+  param      INTEGER,            -- optional per-score note (e.g. black-hole gravity %)
   created_at INTEGER NOT NULL
 );
 

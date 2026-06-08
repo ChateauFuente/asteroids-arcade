@@ -80,16 +80,22 @@ Three checkboxes on the menu combine freely. Config code = 3 bits
 - **Collisions:** elastic asteroid-on-asteroid bouncing; mass ∝ size.
 - **Wormholes:** two portals per wave; rocks, bullets, the saucer, and the ship
   teleport between them. The ship gets a brief shield on exit so it survives.
-- **Black hole:** one hole per wave, placed away from center. Inverse-square
-  gravity reaches the whole screen: `force = G / (dist² + 500)`. Anything crossing
-  the event horizon (radius 20) is consumed. Strength `G` is a menu slider,
-  0 (off) → 2600 (max), default 800.
+- **Black hole:** one hole per wave. Inverse-square gravity reaches the whole
+  screen: `force = G / (dist² + 500)`. Anything crossing the event horizon
+  (radius 20) is consumed. Strength is a **0–100% slider** (default **15%**);
+  `G = pct/100 × BH_MAX_G` where `BH_MAX_G = 780` (100% ≈ the old "really hard"
+  setting). **Spawn spacing:** kept ≥200px from the ship's spot, ≥200px from the
+  center (respawn point), and ≥200px from the wormholes — so a new wave never
+  drops the hole on top of you or a wormhole.
 
 ---
 
 ## 6. Leaderboards
 
 - **Per configuration:** each of the 8 configs keeps its own top-5 (initials + score).
+- **Black-hole %:** scores set with the black hole on store the gravity % (a `param`
+  column in D1); the board shows it in purple next to the score, e.g. `4340 (15%)`,
+  so you can tell an easy run from a brutal one.
 - **Carousel:** the menu/game-over board shows one config at a time, auto-advances
   every 3 s, with ◀ ▶ arrows for manual control. Game over jumps to the config you
   just played.

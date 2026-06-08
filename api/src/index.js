@@ -41,18 +41,18 @@ export default {
       const config = cleanConfig(url.searchParams.get("config"));
       if (config) {
         const rows = await env.DB.prepare(
-          "SELECT initials, score FROM scores WHERE game = ? AND config = ? ORDER BY score DESC LIMIT ?"
+          "SELECT initials, score, param FROM scores WHERE game = ? AND config = ? ORDER BY score DESC LIMIT ?"
         ).bind(game, config, TOP_N).all();
         return new Response(JSON.stringify(rows.results), { headers });
       }
       // No config: every board for this game, grouped, top 5 each.
       const rows = await env.DB.prepare(
-        "SELECT config, initials, score FROM scores WHERE game = ? ORDER BY config, score DESC"
+        "SELECT config, initials, score, param FROM scores WHERE game = ? ORDER BY config, score DESC"
       ).bind(game).all();
       const boards = {};
       for (const r of rows.results) {
         if (!boards[r.config]) boards[r.config] = [];
-        if (boards[r.config].length < TOP_N) boards[r.config].push({ initials: r.initials, score: r.score });
+        if (boards[r.config].length < TOP_N) boards[r.config].push({ initials: r.initials, score: r.score, param: r.param });
       }
       return new Response(JSON.stringify(boards), { headers });
     }
@@ -63,12 +63,14 @@ export default {
       const config = cleanConfig(body.config);
       const initials = String(body.initials || "AAA").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "AAA";
       const score = Math.max(0, Math.floor(Number(body.score) || 0));
+      const param = (body.param === null || body.param === undefined || body.param === "")
+        ? null : Math.max(0, Math.min(100, Math.floor(Number(body.param) || 0)));
       if (!config) {
         return new Response(JSON.stringify({ error: "bad config" }), { status: 400, headers });
       }
       await env.DB.prepare(
-        "INSERT INTO scores (game, config, initials, score, created_at) VALUES (?, ?, ?, ?, ?)"
-      ).bind(game, config, initials, score, Date.now()).run();
+        "INSERT INTO scores (game, config, initials, score, param, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+      ).bind(game, config, initials, score, param, Date.now()).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 

@@ -141,7 +141,7 @@
       </div>
       <div class="slider" id="gravityRow">
         <label>BLACK HOLE GRAVITY <span id="vGravity"></span></label>
-        <input type="range" id="sGravity" min="0" max="2600" step="50">
+        <input type="range" id="sGravity" min="0" max="100" step="1">
       </div>
 
       <div class="group-label">SOUND</div>
@@ -237,10 +237,14 @@ const settings = {
   collisions: false,
   wormholes: false,
   blackhole: false,
-  blackholeStrength: 800,   // 0 = no gravity, 2600 = the strong original pull
+  blackholeStrength: 15,    // black-hole gravity as a PERCENT (0 = off, 100 = max)
   heartVolume: 1.4,
   fxVolume: 0.8,
 };
+
+// 100% on the gravity slider maps to this raw pull (what used to read ~30% on the
+// old 0..2600 scale — already "really hard"). G = strength% / 100 * BH_MAX_G.
+const BH_MAX_G = 780;
 
 // =====================================================================
 //  SOUND  —  three-stage mixer: effects and heartbeat each get their
@@ -486,13 +490,13 @@ async function fetchRemoteBoards() {
     }
   } catch (e) { /* offline — keep the local board */ }
 }
-async function submitRemoteScore(code, initials, score) {
+async function submitRemoteScore(code, initials, score, param) {
   if (!REMOTE_BOARD) return false;
   try {
     const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ config: code, initials, score }),
+      body: JSON.stringify({ config: code, initials, score, param }),
     });
     return r.ok;
   } catch (e) { return false; }
@@ -507,9 +511,9 @@ function qualifies(score) {
   if (b.length < 5) return true;
   return score > b[b.length - 1].score;   // beats the lowest on THIS config
 }
-function addHighScoreLocal(code, initials, score) {
+function addHighScoreLocal(code, initials, score, param) {
   const b = boardFor(code);
-  b.push({ initials, score });
+  b.push({ initials, score, param });
   b.sort((a, b) => b.score - a.score);
   game.allScores[code] = b.slice(0, 5);
   saveAllScores();
@@ -527,8 +531,14 @@ function renderCarousel() {
     '<button class="arrow" onclick="carouselNext()">&#9654;</button></div>';
   for (let i = 0; i < 5; i++) {
     const e = list[i];
-    if (e) html += '<div class="board-row"><span>' + (i+1) + '. ' + e.initials + '</span><span>' + e.score + '</span></div>';
-    else   html += '<div class="board-row dim"><span>' + (i+1) + '. ---</span><span>0</span></div>';
+    if (e) {
+      // For any black-hole config, show the gravity % that score was set at.
+      const pct = (e.param !== null && e.param !== undefined)
+        ? ' <span style="color:#a0f">(' + e.param + '%)</span>' : '';
+      html += '<div class="board-row"><span>' + (i+1) + '. ' + e.initials + '</span><span>' + e.score + pct + '</span></div>';
+    } else {
+      html += '<div class="board-row dim"><span>' + (i+1) + '. ---</span><span>0</span></div>';
+    }
   }
   if (menuBoard) menuBoard.innerHTML = html;
   if (overBoard) overBoard.innerHTML = html;
@@ -584,11 +594,18 @@ function spawnWormholes() {
 function spawnBlackHole() {
   game.blackhole = null;
   if (!blackholeActive()) return;
-  // Place it away from center, where the ship spawns, so you don't start in it.
-  let x, y, tries = 0;
-  do { x = rand(120, W-120); y = rand(120, H-120); tries++; }
-  while (Math.hypot(x - W/2, y - H/2) < 180 && tries < 40);
-  game.blackhole = { x, y, radius: 20, G: settings.blackholeStrength };
+  // Keep it well clear of: the ship's current spot AND the center (where the ship
+  // respawns) so you're never sucked in instantly on a new wave, AND the
+  // wormholes so the two objects don't overlap. (spawnWormholes runs first.)
+  const MIN_SHIP = 200, MIN_WORM = 200;
+  let x, y, tries = 0, ok = false;
+  do {
+    x = rand(120, W - 120); y = rand(120, H - 120); tries++;
+    ok = Math.hypot(x - game.ship.x, y - game.ship.y) >= MIN_SHIP &&
+         Math.hypot(x - W / 2, y - H / 2) >= MIN_SHIP &&
+         game.wormholes.every(w => Math.hypot(x - w.x, y - w.y) >= MIN_WORM);
+  } while (!ok && tries < 80);
+  game.blackhole = { x, y, radius: 20, G: settings.blackholeStrength / 100 * BH_MAX_G };
 }
 
 function spawnWave(count) {
@@ -1076,10 +1093,12 @@ async function submitInitials() {
   let v = (initialsInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
   if (!v) v = "AAA";
   const code = configCode(settings);
-  addHighScoreLocal(code, v, game.score);   // optimistic local update
+  // Record the black-hole gravity % alongside black-hole scores (null otherwise).
+  const param = settings.blackhole ? settings.blackholeStrength : null;
+  addHighScoreLocal(code, v, game.score, param);   // optimistic local update
   document.getElementById("initialsEntry").style.display = "none";
   renderCarousel();
-  if (await submitRemoteScore(code, v, game.score)) {
+  if (await submitRemoteScore(code, v, game.score, param)) {
     await fetchRemoteBoards();               // pull the merged shared board
   }
 }
@@ -1122,7 +1141,7 @@ function syncMenuUI() {
   chkBlackhole.checked = settings.blackhole;
   sGravity.value = settings.blackholeStrength;
   document.getElementById("vGravity").textContent =
-    settings.blackholeStrength === 0 ? "OFF" : Math.round(settings.blackholeStrength / 2600 * 100) + "%";
+    settings.blackholeStrength === 0 ? "OFF" : settings.blackholeStrength + "%";
   // The gravity slider only matters when the black hole is enabled.
   sGravity.disabled = !settings.blackhole;
   document.getElementById("gravityRow").classList.toggle("disabled", !settings.blackhole);
@@ -1160,10 +1179,10 @@ chkCollide.onchange = () => { settings.collisions = chkCollide.checked; syncMenu
 chkWormhole.onchange = () => { settings.wormholes = chkWormhole.checked; syncMenuUI(); };
 chkBlackhole.onchange = () => { settings.blackhole = chkBlackhole.checked; syncMenuUI(); };
 
-// Black hole gravity strength (0 = none, up to the strong original pull).
+// Black hole gravity, as a percent of BH_MAX_G (0 = none, 100 = hardest).
 sGravity.oninput = () => {
   settings.blackholeStrength = parseInt(sGravity.value);
-  if (game.blackhole) game.blackhole.G = settings.blackholeStrength;
+  if (game.blackhole) game.blackhole.G = settings.blackholeStrength / 100 * BH_MAX_G;
   syncMenuUI();
 };
 
