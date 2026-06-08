@@ -183,7 +183,7 @@
     </div>
   </div>
 
-  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; H HYPERSPACE &bull; P PAUSE &bull; M MUTE</div>
+  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; &#8595; HYPERSPACE &bull; P PAUSE &bull; M MUTE</div>
 
   <div id="touch">
     <button id="btnLeft">&#8634;</button>
@@ -401,7 +401,7 @@ document.addEventListener("keydown", e => {
     if (game.state === "menu") startFromMenu();
     else if (game.state === "over") playAgain();
   }
-  if (e.code === "KeyH") hyperspace();
+  if (e.code === "ArrowDown" && !e.repeat) hyperspace();  // tap (ignore key-repeat)
   if (e.code === "KeyM") toggleMute();
   if (e.code === "KeyP" || e.code === "Escape") togglePause();
 });
