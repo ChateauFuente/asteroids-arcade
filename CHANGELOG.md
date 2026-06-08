@@ -5,6 +5,8 @@ This project was built iteratively in a single development channel; dates reflec
 that work (2026-06-08).
 
 ## [Unreleased]
+- Arcade-style pauses: ~1 s delay before a destroyed ship respawns, and ~2 s
+  breather between waves (both were instantaneous before).
 - Title rebranded on the menu to **DAVE Z'S / ASTEROIDS / ON STEROIDS** (teal
   accents above and below the white "ASTEROIDS"); browser tab title updated.
 - Added master spec (`SPEC.md`) and this changelog.

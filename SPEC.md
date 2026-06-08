@@ -53,8 +53,10 @@ Cloudflare D1 backend for global high scores.
   (red) and body are lethal. **It explodes if it hits an asteroid** (in every mode).
 - **Scoring:** asteroid = (4 − size) × 20 → 20/40/60. Saucer = 200 / 1000.
   **Bonus life every 10,000 points.**
-- **Lives/levels:** starting lives = setting (default 3). Wave cleared → next
-  level with `3 + level` asteroids. Screen wraps on all edges.
+- **Lives/levels:** starting lives = setting (default 3). On death the ship
+  pauses ~1 s (RESPAWN_DELAY 60 frames) before reappearing with a spawn shield.
+  Wave cleared → ~2 s breather (WAVE_DELAY 120 frames) → next level with
+  `3 + level` asteroids. Screen wraps on all edges.
 
 ---
 
