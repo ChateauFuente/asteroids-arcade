@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Local tooling / build artifacts
+node_modules/
+.wrangler/
+*.log
+
+# Claude Code local session data (not part of the game)
+.claude/

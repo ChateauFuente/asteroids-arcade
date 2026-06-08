@@ -1,0 +1,21 @@
+# Cloudflare Worker config for the shared leaderboard API.
+# This is a TEMPLATE — nothing is deployed until you run `wrangler deploy`.
+# All names are new and unique so they can't collide with your other Cloudflare
+# projects. Change them here if you prefer different names.
+
+name = "arcade-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# The D1 database binding. After you create the database
+# (`wrangler d1 create arcade_leaderboard`), paste its id into database_id.
+[[d1_databases]]
+binding = "DB"
+database_name = "arcade_leaderboard"
+database_id = "PASTE_DATABASE_ID_HERE"
+
+# Public, non-secret settings. The access key is set separately as a SECRET
+# (so it never lives in this file or in git):
+#   wrangler secret put ARCADE_KEY
+[vars]
+ALLOW_ORIGIN = "https://CHANGE-ME.github.io"
