@@ -458,7 +458,8 @@ function draw() {
     centerText("GAME OVER", 44, 110, "#f44");
     centerText("SCORE " + game.score, 20, 146);
     drawBoard(185);
-    if (lbEntry.style.display === "none") centerText("PRESS ENTER TO PLAY AGAIN", 15, 470);
+    // Sits between the bottom of the board (~298) and the top of the buses (~436).
+    if (lbEntry.style.display === "none") centerText("PRESS ENTER TO PLAY AGAIN", 15, 365);
   }
 }
 
