@@ -18,6 +18,9 @@ Built iteratively in a single development channel; dates reflect that work
   game keeps its own boards. Asteroids unaffected.
 
 ### Stunt Cycle (new)
+- **Fit-to-screen scaling.** When the buses + landing ramp would run off the right
+  edge (~15+ buses), the scene now zooms out (anchored at the ground) so the whole
+  landing zone stays visible. Physics is unchanged — only the drawing scales.
 - **Shared top-5 leaderboard with initials.** Beating the top 5 prompts for
   initials and posts to the global board (game `stunt-cycle`); the board shows on
   the menu and game-over screens, with a local fallback.

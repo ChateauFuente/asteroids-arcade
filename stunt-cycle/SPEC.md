@@ -89,7 +89,11 @@ Game over at 0 lives; best score kept locally (`localStorage` key `stuntCycleHig
   buses 26×34 from `x=262`; landing ramp `LAND_LEN=160` long with a vertical front
   face `LAND_RISE=35` tall (top edge ≈ bus-top height), then the sloped top, then
   flat. Speed windows (sim, with landing tilt): ~3.0 wide at 2 buses tapering to
-  ~1.25 at 12; up to ~14 buses fit.
+  ~1.25 at 12.
+- **Fit-to-screen:** physics runs in fixed world coordinates; only the drawing is
+  scaled. Once `landEnd` would pass the right edge (~14+ buses) the scene is zoomed
+  out (`vs = min(1, (W−12)/(landEnd+12))`, anchored at the ground line) so the
+  whole landing zone stays visible. HUD/text are drawn unscaled.
 - **Outcomes:** bus contact / fall short of the ramp / hitting the front face =
   crash; touchdown on the top slope with a safe angle = cleared; past the ramp
   end, or wrong angle = crash.

@@ -389,6 +389,13 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
 
   if (game.state !== "menu") {
+    // Fit-to-screen: once the landing ramp would run past the right edge, scale
+    // the whole scene down (anchored at the ground line) so it stays visible.
+    // Physics stays in world coordinates — only the drawing is zoomed.
+    const vs = Math.min(1, (W - 12) / (game.landEnd + 12));
+    ctx.save();
+    ctx.translate(0, GY); ctx.scale(vs, vs); ctx.translate(0, -GY);
+
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
     // Top run-up lane
     ctx.beginPath(); ctx.moveTo(TUBE_X + 14, TOP_Y); ctx.lineTo(TOP_RIGHT, TOP_Y); ctx.stroke();
@@ -411,7 +418,7 @@ function draw() {
     ctx.moveTo(game.landStart, GY);                 // base of the front face
     ctx.lineTo(game.landStart, GY - LAND_RISE);     // up the vertical front face
     ctx.lineTo(game.landEnd, GY);                   // down the top slope
-    ctx.lineTo(W, GY);                              // flat ground beyond
+    ctx.lineTo(W / vs, GY);                          // flat ground out to the screen edge
     ctx.stroke();
 
     for (const p of game.debris) {
@@ -421,6 +428,7 @@ function draw() {
     ctx.globalAlpha = 1;
 
     if (game.phase !== "done") drawBike(game.bike.x, game.bike.y, game.bike.angle, game.bike.face);
+    ctx.restore();   // back to screen space for the HUD / overlays
 
     ctx.fillStyle = "#fff"; ctx.font = "20px 'Courier New', monospace"; ctx.textAlign = "left";
     ctx.fillText("SCORE " + game.score, 20, 30);
