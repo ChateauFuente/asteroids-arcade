@@ -454,6 +454,37 @@ function loadAllScores() {
   catch (e) { return {}; }
 }
 function saveAllScores() { localStorage.setItem("asteroidsScoresV2", JSON.stringify(game.allScores)); }
+
+// Optional shared leaderboard (Cloudflare Worker + D1). When the API is set and
+// reachable, scores are global across all players; otherwise the game falls back
+// to the per-browser boards above. CORS limits the API to the hosted page, so
+// local file:// play silently stays on local scores.
+const LEADERBOARD_API = "https://arcade-api.dave-zoellner-us.workers.dev";
+const REMOTE_BOARD = LEADERBOARD_API.length > 0;
+async function fetchRemoteBoards() {
+  if (!REMOTE_BOARD) return;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY));
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data && typeof data === "object") {
+      game.allScores = data;
+      saveAllScores();     // cache for offline / instant next load
+      renderCarousel();
+    }
+  } catch (e) { /* offline — keep the local board */ }
+}
+async function submitRemoteScore(code, initials, score) {
+  if (!REMOTE_BOARD) return false;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: code, initials, score }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
 function boardFor(code) {
   if (!game.allScores[code]) game.allScores[code] = [];
   return game.allScores[code];
@@ -464,8 +495,7 @@ function qualifies(score) {
   if (b.length < 5) return true;
   return score > b[b.length - 1].score;   // beats the lowest on THIS config
 }
-function addHighScore(initials, score) {
-  const code = configCode(settings);
+function addHighScoreLocal(code, initials, score) {
   const b = boardFor(code);
   b.push({ initials, score });
   b.sort((a, b) => b.score - a.score);
@@ -591,10 +621,11 @@ function resumeGame() {
   if (game.saucer) startSaucerSound(game.saucer.big); // restart the siren
 }
 
-function endGame() {
+async function endGame() {
   game.state = "over";
   stopThrustSound(); stopSaucerSound();
   noiseBurst(0.6, 0.5, 600);
+  await fetchRemoteBoards();   // judge "did I make the top 5?" against shared scores
   document.getElementById("overScore").textContent = "SCORE " + game.score;
   const entry = document.getElementById("initialsEntry");
   if (qualifies(game.score)) {
@@ -1018,12 +1049,16 @@ const overBoard = document.getElementById("overBoard");
 const initialsInput = document.getElementById("initialsInput");
 
 // Save the player's initials onto the leaderboard.
-function submitInitials() {
+async function submitInitials() {
   let v = (initialsInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
   if (!v) v = "AAA";
-  addHighScore(v, game.score);
+  const code = configCode(settings);
+  addHighScoreLocal(code, v, game.score);   // optimistic local update
   document.getElementById("initialsEntry").style.display = "none";
-  renderCarousel();   // show the updated board with the new entry
+  renderCarousel();
+  if (await submitRemoteScore(code, v, game.score)) {
+    await fetchRemoteBoards();               // pull the merged shared board
+  }
 }
 initialsInput.addEventListener("input", () => {
   initialsInput.value = initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
@@ -1147,6 +1182,7 @@ if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
 // =====================================================================
 selectPreset("normal");   // sensible defaults + fills the controls
 goMenu();
+fetchRemoteBoards();      // sync the shared leaderboard if the API is reachable
 function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>

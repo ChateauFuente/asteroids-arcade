@@ -12,10 +12,10 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "arcade_leaderboard"
-database_id = "PASTE_DATABASE_ID_HERE"
+database_id = "48018df8-17ef-4d61-83e7-27718fcb5cab"
 
 # Public, non-secret settings. The access key is set separately as a SECRET
 # (so it never lives in this file or in git):
 #   wrangler secret put ARCADE_KEY
 [vars]
-ALLOW_ORIGIN = "https://CHANGE-ME.github.io"
+ALLOW_ORIGIN = "https://chateaufuente.github.io"
