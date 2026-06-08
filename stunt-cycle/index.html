@@ -18,8 +18,8 @@
   #back { color: #0ff; text-decoration: none; }
   #touch { display: none; gap: 10px; margin-top: 14px; }
   #touch button {
-    width: 70px; height: 60px; border-radius: 12px; background: #111; color: #0ff;
-    border: 1px solid #0ff; font-size: 16px; touch-action: none;
+    width: 150px; height: 60px; border-radius: 12px; background: #111; color: #0ff;
+    border: 1px solid #0ff; font-size: 18px; letter-spacing: 2px; touch-action: none;
   }
   #touch button:active { background: #033; }
 </style>
@@ -28,11 +28,9 @@
   <div id="stage">
     <canvas id="game" width="800" height="600"></canvas>
   </div>
-  <div id="hint">HOLD &#8593; or SPACE TO REV &bull; RELEASE TO JUMP &bull; &#8592; &#8594; ROTATE IN AIR &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
+  <div id="hint">HOLD &#8593; or SPACE TO REV &bull; RELEASE TO JUMP &bull; CLEAR THE BUSES, REACH THE RAMP, DON'T OVERSHOOT &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
   <div id="touch">
-    <button id="btnLeft">&#8634;</button>
-    <button id="btnRev">REV</button>
-    <button id="btnRight">&#8635;</button>
+    <button id="btnRev">HOLD&nbsp;TO&nbsp;REV</button>
   </div>
 
 <script>
@@ -48,18 +46,20 @@ if (_hosted && _key !== ACCESS_KEY) {
     '&#128274; This game is private.<br><br>You need the full link (with its access key) to play.</div>';
   throw new Error("Stunt Cycle: access key required");
 }
-// Keep the key on the "back to arcade" link.
 document.getElementById("back").href = ".." + (_key ? "/index.html?key=" + encodeURIComponent(_key) : "/index.html");
 
 // =====================================================================
-//  STUNT CYCLE  —  wireframe bus-jump. One self-contained file.
+//  STUNT CYCLE  —  wireframe bus jump, faithful to Atari's 1976 game:
+//  twist the throttle to set speed (no steering, no air control), clear
+//  the buses, and land on the ramp. Too slow = into the buses; too fast
+//  = overshoot off the end.
 // =====================================================================
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const rand = (a, b) => Math.random() * (b - a) + a;
 
-// --- Sound (synthesized; wakes on first input) ---
+// --- Sound ---
 let actx = null, master = null, muted = false;
 function initAudio() {
   if (!actx) { actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -86,39 +86,39 @@ function noise(dur = 0.3, vol = 0.4, cut = 900) {
   g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
   s.connect(f); f.connect(g); g.connect(master); s.start();
 }
-// Engine: a running oscillator whose pitch tracks the rev power.
 let engine = null;
 function startEngine() {
   if (!actx || engine) return;
   const o = actx.createOscillator(), g = actx.createGain();
-  o.type = "sawtooth"; o.frequency.value = 70; g.gain.value = 0.06;
+  o.type = "sawtooth"; o.frequency.value = 60; g.gain.value = 0.06;
   o.connect(g); g.connect(master); o.start(); engine = { o };
 }
-function setEngine(power) { if (engine) engine.o.frequency.value = 70 + power * 3; }
+function setEngine(power) { if (engine) engine.o.frequency.value = 60 + power * 2.6; }
 function stopEngine() { if (engine) { engine.o.stop(); engine.o.disconnect(); engine = null; } }
-function sndJump() { stopEngine(); tone(300, 0.25, "sawtooth", 0.18); noise(0.2, 0.2, 1500); }
+function sndJump() { stopEngine(); tone(280, 0.25, "sawtooth", 0.18); noise(0.2, 0.18, 1500); }
 function sndCrash() { stopEngine(); noise(0.6, 0.5, 700); tone(90, 0.5, "square", 0.15); }
 function sndClear() { tone(523, 0.1, "square", 0.18); tone(784, 0.16, "square", 0.18, 0.1); }
 
 // --- Geometry (side view) ---
-const GY = 470;                 // ground line
-const RAMP_X0 = 250, LIP_X = 360, LIP_Y = GY - 60;   // takeoff ramp
-const BUS_X0 = 384, BUS_W = 46, BUS_H = 46;          // first bus + size
-const BUS_TOP = GY - BUS_H;
-const START_X = 60, WHEEL_R = 10;
-const G = 0.35;                 // gravity per frame
+const GY = 470;
+const RAMP_X0 = 150, LIP_X = 240, LIP_Y = GY - 55;   // takeoff ramp
+const TH = Math.atan2(55, LIP_X - RAMP_X0);          // ramp angle
+const BUS_X0 = 262, BUS_W = 26, BUS_H = 34, BUS_TOP = GY - BUS_H;
+const LAND_LEN = 120, LAND_RISE = 55;
+const START_X = 50, WHEEL_R = 9;
+const G = 0.34;
+const MIN_S = 4, MAX_S = 15;       // launch speed range (power 0..100)
+const POWER_RATE = 0.7;            // power fill per frame (slower = more control)
 
-// Ground height at a given x (runway → ramp → flat past the lip is air).
-function rampProfile(x) {
+function rampProfile(x) {           // ground height on the takeoff side
   if (x <= RAMP_X0) return GY;
-  if (x < LIP_X) return GY - (x - RAMP_X0) / (LIP_X - RAMP_X0) * 60;
+  if (x < LIP_X) return GY - (x - RAMP_X0) / (LIP_X - RAMP_X0) * 55;
   return LIP_Y;
 }
-// Landing surface height past the buses (down-ramp then flat).
-function landY(x) {
+function landY(x) {                 // landing-ramp height past the buses
   const L0 = game.landStart, L1 = game.landEnd;
-  if (x <= L0) return GY - 60;
-  if (x < L1) return (GY - 60) + (x - L0) / (L1 - L0) * 60;
+  if (x <= L0) return GY - LAND_RISE;
+  if (x < L1) return (GY - LAND_RISE) + (x - L0) / (L1 - L0) * LAND_RISE;
   return GY;
 }
 
@@ -130,18 +130,16 @@ const game = {
   power: 0,
   bike: { x: START_X, y: GY - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 0 },
   debris: [], crashTimer: 0, clearTimer: 0,
-  busEnd: 0, landStart: 0, landEnd: 0,
-  frame: 0,
+  busEnd: 0, landStart: 0, landEnd: 0, frame: 0,
 };
 
 function computeLayout() {
   game.busEnd = BUS_X0 + game.numBuses * BUS_W;
-  game.landStart = game.busEnd + 14;
-  game.landEnd = game.landStart + 130;
+  game.landStart = game.busEnd + 6;
+  game.landEnd = game.landStart + LAND_LEN;
 }
 function resetBike() {
-  game.phase = "rev";
-  game.power = 0;
+  game.phase = "rev"; game.power = 0;
   game.bike = { x: START_X, y: GY - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 0 };
 }
 function startGame() {
@@ -152,13 +150,11 @@ function startGame() {
 }
 function launch() {
   if (game.phase !== "rev") return;
-  const speed = 6 + game.power / 100 * 9;     // 6..15 from the power meter
-  game.bike.speed = speed;
-  game.phase = "run";
-  sndJump();
+  game.bike.speed = MIN_S + game.power / 100 * (MAX_S - MIN_S);
+  game.phase = "run"; sndJump();
 }
 function releaseThrottle() {
-  if (game.state === "playing" && game.phase === "rev" && game.power > 5) launch();
+  if (game.state === "playing" && game.phase === "rev" && game.power > 3) launch();
 }
 function spawnDebris(x, y) {
   for (let i = 0; i < 18; i++) {
@@ -167,32 +163,25 @@ function spawnDebris(x, y) {
   }
 }
 function crash() {
-  spawnDebris(game.bike.x, game.bike.y);
-  sndCrash();
-  game.lives--;
-  game.crashTimer = 70;
-  game.phase = "air"; // freeze controls during the crash pause
-  if (game.lives <= 0) {
-    if (game.score > game.hi) { game.hi = game.score; localStorage.setItem("stuntCycleHigh", String(game.hi)); }
+  spawnDebris(game.bike.x, game.bike.y); sndCrash();
+  game.lives--; game.crashTimer = 70; game.phase = "done";
+  if (game.lives <= 0 && game.score > game.hi) {
+    game.hi = game.score; localStorage.setItem("stuntCycleHigh", String(game.hi));
   }
 }
 function cleared() {
-  game.score += game.numBuses;
-  game.numBuses++;
-  sndClear();
-  game.clearTimer = 50;
-  computeLayout();
+  game.score += game.numBuses; game.numBuses++; sndClear();
+  game.clearTimer = 50; game.phase = "done"; computeLayout();
 }
 
-// --- Input ---
+// --- Input (throttle + brake only — no steering, true to the original) ---
 const keys = {};
 document.addEventListener("keydown", e => {
   initAudio();
-  if (e.target && e.target.tagName === "INPUT") return;
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
   if (e.code === "Enter" && (game.state === "menu" || game.state === "over")) startGame();
-  if (e.code === "Space" && !e.repeat) { if (game.state === "playing") releaseThrottle(); }
+  if (e.code === "Space" && !e.repeat && game.state === "playing") releaseThrottle();
   if (e.code === "KeyP" || e.code === "Escape") togglePause();
   if (e.code === "KeyM") toggleMute();
 });
@@ -224,63 +213,74 @@ function update() {
 
   if (game.phase === "rev") {
     startEngine();
-    if (keys["ArrowUp"] || keys["Space"]) game.power = Math.min(100, game.power + 1.5);
+    if (keys["ArrowUp"] || keys["Space"]) game.power = Math.min(100, game.power + POWER_RATE);
     setEngine(game.power);
+    b.angle = -game.power / 100 * 0.5;     // throttle wheelie, just for show
   }
   else if (game.phase === "run") {
     b.x += b.speed;
     b.y = rampProfile(b.x) - WHEEL_R;
+    b.angle = -TH;
     if (b.x >= LIP_X) {
-      // Launch off the lip along the ramp angle.
-      const th = Math.atan2(60, LIP_X - RAMP_X0);
-      b.vx = Math.cos(th) * b.speed;
-      b.vy = -Math.sin(th) * b.speed;
-      b.angle = -th;          // nose-up; player must level it for landing
+      b.vx = Math.cos(TH) * b.speed; b.vy = -Math.sin(TH) * b.speed;
       game.phase = "air";
     }
   }
   else if (game.phase === "air") {
-    if (keys["ArrowLeft"])  b.angle -= 0.05;
-    if (keys["ArrowRight"]) b.angle += 0.05;
     b.x += b.vx; b.y += b.vy; b.vy += G;
+    b.angle = Math.atan2(b.vy, b.vx);       // nose follows the arc (no control)
     const bottom = b.y + WHEEL_R;
 
-    // Hit a bus?
-    if (b.x >= BUS_X0 && b.x <= game.busEnd && bottom >= BUS_TOP) { crash(); return; }
-    // Fell short before the buses?
-    if (b.x < BUS_X0 && bottom >= GY) { crash(); return; }
-    // Touchdown past the buses.
-    if (b.x > game.busEnd && bottom >= landY(b.x)) {
-      let a = b.angle % (Math.PI * 2);
-      if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2;
-      if (Math.abs(a) <= 0.45) cleared(); else crash();
+    if (b.x >= BUS_X0 && b.x <= game.busEnd && bottom >= BUS_TOP) { crash(); return; } // into a bus
+    if (b.x < BUS_X0 && bottom >= GY) { crash(); return; }                              // fell short
+    if (b.x > game.busEnd && bottom >= landY(b.x)) {                                    // touchdown past buses
+      if (b.x <= game.landEnd) cleared(); else crash();                                 // on ramp = safe, beyond = overshoot
       return;
     }
-    if (b.x > W + 60) crash();   // flew off-screen
+    if (b.x > W + 40) crash();               // flew off the end
   }
 }
 
 // =====================================================================
 //  DRAW
 // =====================================================================
+function roundRectPath(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawBus(bx) {
+  const bw = BUS_W - 5;                       // small gap between buses
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+  // body with rounded corners
+  roundRectPath(bx, BUS_TOP, bw, BUS_H - 5, 6); ctx.stroke();
+  // window strip
+  roundRectPath(bx + 3, BUS_TOP + 4, bw - 6, 9, 2); ctx.stroke();
+  ctx.beginPath();                            // window dividers
+  ctx.moveTo(bx + bw * 0.5, BUS_TOP + 4); ctx.lineTo(bx + bw * 0.5, BUS_TOP + 13);
+  ctx.stroke();
+  // wheels
+  ctx.beginPath(); ctx.arc(bx + 6, GY - 4, 3, 0, Math.PI * 2);
+  ctx.moveTo(bx + bw - 3, GY - 4); ctx.arc(bx + bw - 6, GY - 4, 3, 0, Math.PI * 2);
+  ctx.stroke();
+}
 function drawBike(x, y, angle) {
   ctx.save();
   ctx.translate(x, y); ctx.rotate(angle);
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-  // wheels
-  ctx.beginPath(); ctx.arc(-13, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(13, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();
-  // frame
+  ctx.beginPath(); ctx.arc(-12, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(12, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(-13, 0); ctx.lineTo(0, -8); ctx.lineTo(13, 0);
-  ctx.moveTo(0, -8); ctx.lineTo(6, -14);            // seat/handlebar post
-  ctx.stroke();
-  // rider
-  ctx.strokeStyle = "#0ff";
+  ctx.moveTo(-12, 0); ctx.lineTo(0, -7); ctx.lineTo(12, 0);
+  ctx.moveTo(0, -7); ctx.lineTo(6, -12); ctx.stroke();
+  ctx.strokeStyle = "#0ff";                   // rider
   ctx.beginPath();
-  ctx.moveTo(-2, -8); ctx.lineTo(-4, -20);          // torso
-  ctx.lineTo(8, -16);                                // arm to bars
-  ctx.moveTo(-4, -20); ctx.arc(-4, -23, 3, 0, Math.PI * 2);  // head
+  ctx.moveTo(-2, -7); ctx.lineTo(-4, -18); ctx.lineTo(8, -14);
+  ctx.moveTo(-4, -18); ctx.arc(-4, -21, 3, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -292,34 +292,26 @@ function centerText(t, size, y, color = "#fff") {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  // Ground + runway + takeoff ramp
+  // Runway + takeoff ramp
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.stroke();
 
   if (game.state !== "menu") {
-    // Buses
-    ctx.strokeStyle = "#fff";
-    for (let i = 0; i < game.numBuses; i++) {
-      const bx = BUS_X0 + i * BUS_W;
-      ctx.strokeRect(bx, BUS_TOP, BUS_W - 4, BUS_H);
-      ctx.strokeRect(bx + 5, BUS_TOP + 6, BUS_W - 14, 12);   // windows
-    }
-    // Landing ramp + ground beyond
-    ctx.beginPath();
-    ctx.moveTo(game.landStart, GY - 60); ctx.lineTo(game.landEnd, GY); ctx.lineTo(W, GY); ctx.stroke();
+    for (let i = 0; i < game.numBuses; i++) drawBus(BUS_X0 + i * BUS_W);
 
-    // Debris
+    // Landing ramp (elevated near the buses, sloping down to the ground)
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(game.landStart, GY - LAND_RISE); ctx.lineTo(game.landEnd, GY); ctx.lineTo(W, GY); ctx.stroke();
+
     for (const p of game.debris) {
       ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
       ctx.fillStyle = "#fa0"; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
     }
     ctx.globalAlpha = 1;
 
-    // Bike (hidden during the crash freeze)
-    if (game.crashTimer === 0) drawBike(game.bike.x, game.bike.y, game.bike.angle);
+    if (game.phase !== "done") drawBike(game.bike.x, game.bike.y, game.bike.angle);
 
-    // HUD
     ctx.fillStyle = "#fff"; ctx.font = "20px 'Courier New', monospace"; ctx.textAlign = "left";
     ctx.fillText("SCORE " + game.score, 20, 30);
     ctx.fillText("LIVES " + game.lives, 20, 55);
@@ -327,15 +319,14 @@ function draw() {
     ctx.fillText("BUSES " + game.numBuses, W - 20, 30);
     ctx.fillText("HI " + game.hi, W - 20, 55);
 
-    // Power meter (during rev)
     if (game.phase === "rev") {
-      ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2; ctx.strokeRect(20, H - 40, 200, 18);
-      ctx.fillStyle = "#0ff"; ctx.fillRect(22, H - 38, 196 * game.power / 100, 14);
-      ctx.fillStyle = "#0ff"; ctx.font = "13px 'Courier New', monospace"; ctx.textAlign = "left";
-      ctx.fillText("POWER", 20, H - 48);
+      ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2; ctx.strokeRect(20, H - 40, 220, 18);
+      ctx.fillStyle = "#0ff"; ctx.fillRect(22, H - 38, 216 * game.power / 100, 14);
+      ctx.font = "13px 'Courier New', monospace"; ctx.textAlign = "left";
+      ctx.fillText("THROTTLE", 20, H - 48);
     }
-    if (game.clearTimer > 0) centerText("CLEARED!", 36, 160, "#0ff");
-    if (game.crashTimer > 0) centerText("CRASH!", 36, 160, "#f44");
+    if (game.clearTimer > 0) centerText("CLEARED!", 36, 150, "#0ff");
+    if (game.crashTimer > 0) centerText("CRASH!", 36, 150, "#f44");
   }
 
   if (game.state === "menu") {
@@ -351,20 +342,18 @@ function draw() {
   }
 }
 
-// --- Touch ---
-function bindButton(id, code, isRev) {
+// --- Touch: a single REV button (hold to throttle, release to jump) ---
+function bindRev(id) {
   const el = document.getElementById(id);
   const down = e => { e.preventDefault(); initAudio();
     if (game.state === "menu" || game.state === "over") { startGame(); return; }
-    keys[code] = true; };
-  const up = e => { e.preventDefault(); keys[code] = false; if (isRev) releaseThrottle(); };
+    keys["ArrowUp"] = true; };
+  const up = e => { e.preventDefault(); keys["ArrowUp"] = false; releaseThrottle(); };
   el.addEventListener("touchstart", down, { passive: false });
   el.addEventListener("touchend", up, { passive: false });
   el.addEventListener("mousedown", down); el.addEventListener("mouseup", up); el.addEventListener("mouseleave", up);
 }
-bindButton("btnLeft", "ArrowLeft", false);
-bindButton("btnRight", "ArrowRight", false);
-bindButton("btnRev", "ArrowUp", true);
+bindRev("btnRev");
 canvas.addEventListener("touchstart", e => { e.preventDefault(); initAudio();
   if (game.state === "menu" || game.state === "over") startGame(); }, { passive: false });
 if ("ontouchstart" in window || navigator.maxTouchPoints > 0) document.getElementById("touch").style.display = "flex";

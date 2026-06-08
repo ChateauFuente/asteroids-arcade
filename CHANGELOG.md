@@ -13,9 +13,14 @@ Built iteratively in a single development channel; dates reflect that work
   changelog unified for the whole arcade.
 
 ### Stunt Cycle (new)
-- Wireframe Atari-style bus jump: rev a power meter, launch off the ramp, rotate
-  in the air, and land level past the buses. Each clear adds a bus; 3 lives;
-  local high score; synthesized engine/jump/crash/clear sound; touch controls.
+- Wireframe Atari-style bus jump: rev a throttle meter, launch off the ramp, clear
+  the buses, and land on the ramp. Each clear adds a bus; 3 lives; local high
+  score; synthesized engine/jump/crash/clear sound; touch controls.
+- **Reworked to match the 1976 original** after review: removed the invented
+  in-air rotation; it's now throttle-only (no steering, no air control) with a
+  forgiving **speed window** — too slow = into the buses, too fast = overshoot.
+  Slowed the throttle fill for control, and redrew the buses with rounded bodies,
+  windows, and wheels.
 
 ### Asteroids
 - Hyperspace moved from **H** to the **Down arrow** (keeps the hand on the
