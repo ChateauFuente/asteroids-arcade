@@ -41,7 +41,15 @@ Built iteratively in a single development channel; dates reflect that work
   valid. Re-tuned ramp geometry (verified by simulation) so a real speed window
   exists at every bus count.
 
+### Arcade / navigation
+- **Back-to-arcade everywhere.** Asteroids now has a ◀ ARCADE link (amber) in the
+  hint line and an ARCADE button on the game-over screen; Stunt Cycle's link is
+  amber to match. Both carry the access key back to the menu.
+
 ### Asteroids
+- **Wormhole self-bullets.** A bullet that travels back through a wormhole can now
+  hit its own shooter — your shot can kill your ship, and the saucer can destroy
+  itself with its own shot (no points for that). Fresh, un-warped shots are safe.
 - **Black-hole gravity rescaled** to a 0–100% slider (default **15%**); 100% now
   equals the old "really hard" ~30% setting, so the whole range is more usable.
 - **Black-hole % on the leaderboard:** black-hole scores record the gravity % and

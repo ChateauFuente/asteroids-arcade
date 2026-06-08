@@ -61,6 +61,11 @@
   .seg button.sel { background: #0ff; color: #000; font-weight: bold; }
   .seg button:hover, #startBtn:hover, .over-btn:hover { background: #033; }
   .seg button.sel:hover { background: #0ff; }
+  /* Leaving the game back to the arcade — amber so it stands apart. */
+  .arcade-btn { color: #fb0; border-color: #fb0; }
+  .arcade-btn:hover { background: #221800; }
+  #hint a { color: #fb0; text-decoration: none; }
+  #hint a:hover { text-decoration: underline; }
 
   .group-label { font-size: 12px; color: #888; letter-spacing: 2px; margin-top: 4px; }
 
@@ -179,11 +184,12 @@
       <div class="row" style="margin-top:10px;">
         <button class="over-btn" id="againBtn">PLAY AGAIN</button>
         <button class="over-btn" id="menuBtn">MENU</button>
+        <button class="over-btn arcade-btn" id="arcadeBtn">&#9664; ARCADE</button>
       </div>
     </div>
   </div>
 
-  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; &#8595; HYPERSPACE &bull; P PAUSE &bull; M MUTE</div>
+  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; &#8595; HYPERSPACE &bull; P PAUSE &bull; M MUTE &bull; <a id="arcadeLink" href="#">&#9664; ARCADE</a></div>
 
   <div id="touch">
     <button id="btnLeft">&#8634;</button>
@@ -741,6 +747,7 @@ function applyWormholes(objects) {
         o.x = dst.x + ux * (dst.radius + 10);
         o.y = dst.y + uy * (dst.radius + 10);
         o.teleCooldown = 20;
+        o.warped = true;   // a bullet that came through a portal can hit its own shooter
         // The ship arrives with a brief shield so it can't die on a rock
         // that happens to be drifting through the exit portal.
         if ("invincible" in o) o.invincible = Math.max(o.invincible, 45);
@@ -807,7 +814,7 @@ function update() {
         x: ship.x + Math.cos(ship.angle)*ship.radius,
         y: ship.y + Math.sin(ship.angle)*ship.radius,
         vx: Math.cos(ship.angle)*7 + ship.vx, vy: Math.sin(ship.angle)*7 + ship.vy,
-        life: 60, enemy: false, teleCooldown: 0,
+        life: 60, enemy: false, teleCooldown: 0, warped: false,
       });
       game.fireCooldown = 10; playFire();
     }
@@ -872,7 +879,7 @@ function update() {
         let ang = s.big ? rand(0, Math.PI*2)
                         : Math.atan2(ship.y - s.y, ship.x - s.x) + rand(-0.15, 0.15);
         game.bullets.push({ x: s.x, y: s.y, vx: Math.cos(ang)*4, vy: Math.sin(ang)*4,
-                            life: 100, enemy: true, teleCooldown: 0 });
+                            life: 100, enemy: true, teleCooldown: 0, warped: false });
         s.fireTimer = s.fireRate;
         tone(330, 0.1, "sawtooth", 0.1);
       }
@@ -900,15 +907,16 @@ function update() {
     }
   }
 
-  // Player bullets vs saucer
+  // Bullets vs saucer: your shots hit it, and the saucer's OWN bullet hits it too
+  // if it came back through a wormhole (no points for that self-destruct).
   if (game.saucer) {
     const s = game.saucer;
     for (let j = game.bullets.length - 1; j >= 0; j--) {
       const b = game.bullets[j];
-      if (b.enemy) continue;
+      if (b.enemy && !b.warped) continue;   // the saucer's own fresh bullets pass through it
       if (Math.hypot(s.x - b.x, s.y - b.y) < s.radius) {
         game.bullets.splice(j, 1);
-        addScore(s.big ? 200 : 1000);
+        if (!b.enemy) addScore(s.big ? 200 : 1000);   // you only score with your own shot
         spawnExplosion(s.x, s.y, 25, "#0ff", 4);
         noiseBurst(0.4, 0.5, 700);
         game.saucer = null; stopSaucerSound();
@@ -948,7 +956,8 @@ function update() {
     if (!hit)
       for (let j = game.bullets.length - 1; j >= 0; j--) {
         const b = game.bullets[j];
-        if (b.enemy && Math.hypot(b.x - ship.x, b.y - ship.y) < ship.radius) { game.bullets.splice(j,1); hit = true; break; }
+        // Saucer bullets always; your OWN bullet too if it came back through a portal.
+        if ((b.enemy || b.warped) && Math.hypot(b.x - ship.x, b.y - ship.y) < ship.radius) { game.bullets.splice(j,1); hit = true; break; }
       }
     if (hit) loseLife();
   }
@@ -1189,6 +1198,11 @@ sGravity.oninput = () => {
 document.getElementById("startBtn").onclick = startFromMenu;
 document.getElementById("againBtn").onclick = playAgain;
 document.getElementById("menuBtn").onclick = goMenu;
+// Back to the arcade menu, carrying the access key along.
+const _akey = new URLSearchParams(location.search).get("key") || "";
+const ARCADE_HREF = ".." + (_akey ? "/index.html?key=" + encodeURIComponent(_akey) : "/index.html");
+document.getElementById("arcadeLink").href = ARCADE_HREF;
+document.getElementById("arcadeBtn").onclick = () => { location.href = ARCADE_HREF; };
 document.getElementById("resumeBtn").onclick = resumeGame;
 document.getElementById("pauseMenuBtn").onclick = goMenu;
 
