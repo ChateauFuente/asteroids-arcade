@@ -1,13 +1,16 @@
-// Cloudflare Worker: a tiny shared-leaderboard API backed by D1.
+// Cloudflare Worker: a tiny shared-leaderboard API backed by D1, for the arcade.
 //
-// Endpoints:
-//   GET  /scores              -> { "000": [{initials,score}...], "001": [...], ... }
-//   GET  /scores?config=110   -> [{initials,score}, ...]  (top 5 for one config)
-//   POST /scores              -> body { config, initials, score }
+// Scores are namespaced by GAME and (within a game) by CONFIG:
+//   - Asteroids uses config "000".."111" (its 8 physics combos).
+//   - Stunt Cycle uses a single config "main".
 //
-// It is gated by a shared key (set with `wrangler secret put ARCADE_KEY`) and
-// only talks to the D1 database bound as DB in wrangler.toml. Deploy steps are
-// in api/README.md. Until deployed, the game falls back to per-browser scores.
+// Endpoints (all require ?key=<ARCADE_KEY>):
+//   GET  /scores?game=asteroids            -> { "000":[{initials,score}...], ... }
+//   GET  /scores?game=asteroids&config=110 -> [{initials,score}, ...]  (top 5)
+//   GET  /scores?game=stunt-cycle&config=main -> top 5 for that board
+//   POST /scores  body { game, config, initials, score }
+//
+// `game` defaults to "asteroids" so the original Asteroids client keeps working.
 
 const TOP_N = 5;
 
@@ -19,6 +22,8 @@ function corsHeaders(env) {
     "Content-Type": "application/json",
   };
 }
+const cleanGame = g => String(g || "asteroids").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24) || "asteroids";
+const cleanConfig = c => String(c || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 12);
 
 export default {
   async fetch(request, env) {
@@ -27,23 +32,23 @@ export default {
 
     if (request.method === "OPTIONS") return new Response(null, { headers });
 
-    // Shared-secret gate so random visitors can't read or spam the board.
     if (env.ARCADE_KEY && url.searchParams.get("key") !== env.ARCADE_KEY) {
       return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers });
     }
 
     if (url.pathname === "/scores" && request.method === "GET") {
-      const config = url.searchParams.get("config");
+      const game = cleanGame(url.searchParams.get("game"));
+      const config = cleanConfig(url.searchParams.get("config"));
       if (config) {
         const rows = await env.DB.prepare(
-          "SELECT initials, score FROM scores WHERE config = ? ORDER BY score DESC LIMIT ?"
-        ).bind(config, TOP_N).all();
+          "SELECT initials, score FROM scores WHERE game = ? AND config = ? ORDER BY score DESC LIMIT ?"
+        ).bind(game, config, TOP_N).all();
         return new Response(JSON.stringify(rows.results), { headers });
       }
-      // No config given: return every board, grouped, top 5 each.
+      // No config: every board for this game, grouped, top 5 each.
       const rows = await env.DB.prepare(
-        "SELECT config, initials, score FROM scores ORDER BY config, score DESC"
-      ).all();
+        "SELECT config, initials, score FROM scores WHERE game = ? ORDER BY config, score DESC"
+      ).bind(game).all();
       const boards = {};
       for (const r of rows.results) {
         if (!boards[r.config]) boards[r.config] = [];
@@ -54,15 +59,16 @@ export default {
 
     if (url.pathname === "/scores" && request.method === "POST") {
       const body = await request.json().catch(() => ({}));
-      const config = String(body.config || "");
+      const game = cleanGame(body.game);
+      const config = cleanConfig(body.config);
       const initials = String(body.initials || "AAA").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "AAA";
       const score = Math.max(0, Math.floor(Number(body.score) || 0));
-      if (!/^[01]{3}$/.test(config)) {
+      if (!config) {
         return new Response(JSON.stringify({ error: "bad config" }), { status: 400, headers });
       }
       await env.DB.prepare(
-        "INSERT INTO scores (config, initials, score, created_at) VALUES (?, ?, ?, ?)"
-      ).bind(config, initials, score, Date.now()).run();
+        "INSERT INTO scores (game, config, initials, score, created_at) VALUES (?, ?, ?, ?, ?)"
+      ).bind(game, config, initials, score, Date.now()).run();
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 

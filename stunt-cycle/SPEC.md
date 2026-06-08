@@ -124,8 +124,13 @@ stunt-cycle/SPEC.md      This document.
 
 State machine `menu → playing (approach/tube/run/air/done) → over`, plus `paused`.
 Access-key gate identical to the other arcade pages (enforced only when hosted).
-No backend yet — scores are local; a shared leaderboard (via the arcade `api/`
-Worker, adding a `game` dimension) is a possible future step.
+
+**Shared leaderboard:** uses the same Cloudflare D1 backend as Asteroids
+(`arcade-api` Worker), namespaced by `game="stunt-cycle"`, `config="main"`. On
+game over, beating the top 5 prompts for 3-letter initials and posts to the global
+board; the top-5 (with initials) shows on the menu and game-over screens. Falls
+back to per-browser scores (`localStorage` key `stuntCycleScores`) when the API is
+unreachable.
 
 ---
 

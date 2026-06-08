@@ -12,7 +12,15 @@ Built iteratively in a single development channel; dates reflect that work
 - Per-game master specs (`asteroids/SPEC.md`, `stunt-cycle/SPEC.md`); this
   changelog unified for the whole arcade.
 
+### Arcade / backend
+- **Shared leaderboard now spans multiple games.** Added a `game` column to the
+  D1 table and a `game` param to the Worker API (defaults to `asteroids`), so each
+  game keeps its own boards. Asteroids unaffected.
+
 ### Stunt Cycle (new)
+- **Shared top-5 leaderboard with initials.** Beating the top 5 prompts for
+  initials and posts to the global board (game `stunt-cycle`); the board shows on
+  the menu and game-over screens, with a local fallback.
 - Wireframe Atari-style bus jump: rev a throttle meter, launch off the ramp, clear
   the buses, and land on the ramp. Each clear adds a bus; 3 lives; local high
   score; synthesized engine/jump/crash/clear sound; touch controls.

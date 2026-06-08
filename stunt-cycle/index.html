@@ -22,11 +22,31 @@
     border: 1px solid #0ff; font-size: 18px; touch-action: none;
   }
   #touch button:active { background: #033; }
+  #lbentry {
+    position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 8px;
+  }
+  #lbentry .lbl { color: #ff0; font-size: 14px; letter-spacing: 1px; }
+  #initials {
+    width: 120px; text-align: center; font-family: inherit; font-size: 28px;
+    letter-spacing: 10px; text-indent: 10px; text-transform: uppercase;
+    background: #001; color: #0ff; border: 1px solid #0ff; border-radius: 6px; padding: 6px 0;
+  }
+  #saveBtn {
+    background: #111; color: #0ff; border: 1px solid #0ff; border-radius: 8px;
+    padding: 8px 16px; font-family: inherit; font-size: 14px; letter-spacing: 1px; cursor: pointer;
+  }
+  #saveBtn:hover { background: #033; }
 </style>
 </head>
 <body>
   <div id="stage">
     <canvas id="game" width="800" height="600"></canvas>
+    <div id="lbentry">
+      <div class="lbl">NEW HIGH SCORE! ENTER INITIALS</div>
+      <input id="initials" maxlength="3" autocomplete="off" spellcheck="false" placeholder="AAA">
+      <button id="saveBtn">SAVE</button>
+    </div>
   </div>
   <div id="hint">TOP LANE: &#8593; FASTER / &#8595; SLOWER &bull; TUBES DOWN TO THE JUMP &bull; IN AIR: &#8592; &#8594; ANGLE (land rear wheel first on the ramp) &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
   <div id="touch">
@@ -50,6 +70,66 @@ if (_hosted && _key !== ACCESS_KEY) {
   throw new Error("Stunt Cycle: access key required");
 }
 document.getElementById("back").href = ".." + (_key ? "/index.html?key=" + encodeURIComponent(_key) : "/index.html");
+
+// ---- Shared leaderboard (same Cloudflare D1 backend as Asteroids) ----
+const LEADERBOARD_API = "https://arcade-api.dave-zoellner-us.workers.dev";
+const GAME_ID = "stunt-cycle", BOARD = "main";
+const REMOTE_BOARD = LEADERBOARD_API.length > 0;
+function loadLocalScores() {
+  try { return JSON.parse(localStorage.getItem("stuntCycleScores")) || []; }
+  catch (e) { return []; }
+}
+function saveLocalScores() { localStorage.setItem("stuntCycleScores", JSON.stringify(game.scores)); }
+function qualifies(score) {
+  if (score <= 0) return false;
+  if (game.scores.length < 5) return true;
+  return score > game.scores[game.scores.length - 1].score;
+}
+function addScoreLocal(initials, score) {
+  game.scores.push({ initials, score });
+  game.scores.sort((a, b) => b.score - a.score);
+  game.scores = game.scores.slice(0, 5);
+  saveLocalScores();
+}
+async function fetchBoard() {
+  if (!REMOTE_BOARD) return;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY) +
+                          "&game=" + GAME_ID + "&config=" + BOARD);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (Array.isArray(d)) { game.scores = d; saveLocalScores(); }
+  } catch (e) { /* offline — keep local */ }
+}
+async function postScore(initials, score) {
+  if (!REMOTE_BOARD) return false;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game: GAME_ID, config: BOARD, initials, score }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+const lbEntry = document.getElementById("lbentry");
+const initialsEl = document.getElementById("initials");
+function showEntry() { lbEntry.style.display = "flex"; initialsEl.value = ""; setTimeout(() => initialsEl.focus(), 50); }
+function hideEntry() { lbEntry.style.display = "none"; }
+async function submitInitials() {
+  let v = (initialsEl.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "AAA";
+  addScoreLocal(v, game.score);
+  hideEntry();
+  if (await postScore(v, game.score)) await fetchBoard();
+}
+initialsEl.addEventListener("input", () => { initialsEl.value = initialsEl.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3); });
+initialsEl.addEventListener("keydown", e => { e.stopPropagation(); if (e.code === "Enter") { e.preventDefault(); submitInitials(); } });
+document.getElementById("saveBtn").onclick = submitInitials;
+// On game over: show the latest shared board, and offer initials if you made it.
+function onGameOver() {
+  game.state = "over";
+  (async () => { await fetchBoard(); if (qualifies(game.score)) showEntry(); })();
+}
 
 // =====================================================================
 //  STUNT CYCLE  —  top run-up lane (set speed) → tube → jump lane →
@@ -125,7 +205,7 @@ const game = {
   state: "menu",            // menu | playing | paused | over
   phase: "approach",        // approach | tube | run | air | done
   lives: 3, score: 0, numBuses: 2,
-  hi: parseInt(localStorage.getItem("stuntCycleHigh") || "0", 10),
+  scores: loadLocalScores(),
   bike: { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 },
   debris: [], crashTimer: 0, clearTimer: 0,
   busEnd: 0, landStart: 0, landEnd: 0, frame: 0,
@@ -141,6 +221,7 @@ function resetBike() {
   game.bike = { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 };
 }
 function startGame() {
+  hideEntry();
   game.state = "playing";
   game.lives = 3; game.score = 0; game.numBuses = 2;
   game.debris = []; game.crashTimer = 0; game.clearTimer = 0;
@@ -155,9 +236,6 @@ function spawnDebris(x, y) {
 function crash() {
   spawnDebris(game.bike.x, game.bike.y); sndCrash();
   game.lives--; game.crashTimer = 70; game.phase = "done";
-  if (game.lives <= 0 && game.score > game.hi) {
-    game.hi = game.score; localStorage.setItem("stuntCycleHigh", String(game.hi));
-  }
 }
 function cleared() {
   game.score += game.numBuses; game.numBuses++; sndClear();
@@ -167,6 +245,7 @@ function cleared() {
 // --- Input ---
 const keys = {};
 document.addEventListener("keydown", e => {
+  if (e.target && e.target.tagName === "INPUT") return;  // typing initials
   initAudio();
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
@@ -192,7 +271,7 @@ function update() {
   const b = game.bike;
 
   if (game.crashTimer > 0) {
-    if (--game.crashTimer === 0) { if (game.lives > 0) resetBike(); else game.state = "over"; }
+    if (--game.crashTimer === 0) { if (game.lives > 0) resetBike(); else onGameOver(); }
     return;
   }
   if (game.clearTimer > 0) { if (--game.clearTimer === 0) resetBike(); return; }
@@ -294,6 +373,17 @@ function centerText(t, size, y, color = "#fff") {
   ctx.fillStyle = color; ctx.font = size + "px 'Courier New', monospace";
   ctx.textAlign = "center"; ctx.fillText(t, W / 2, y);
 }
+function drawBoard(top) {
+  ctx.fillStyle = "#888"; ctx.font = "13px 'Courier New', monospace"; ctx.textAlign = "center";
+  ctx.fillText("TOP 5 SCORES", W / 2, top);
+  ctx.font = "16px 'Courier New', monospace";
+  for (let i = 0; i < 5; i++) {
+    const e = game.scores[i], y = top + 24 + i * 21;
+    ctx.fillStyle = e ? "#fff" : "#555";
+    ctx.textAlign = "left";  ctx.fillText((i + 1) + ".  " + (e ? e.initials : "---"), W / 2 - 65, y);
+    ctx.textAlign = "right"; ctx.fillText("" + (e ? e.score : 0), W / 2 + 65, y);
+  }
+}
 
 function draw() {
   ctx.clearRect(0, 0, W, H);
@@ -337,7 +427,7 @@ function draw() {
     ctx.fillText("LIVES " + game.lives, 20, 55);
     ctx.textAlign = "right";
     ctx.fillText("BUSES " + game.numBuses, W - 20, 30);
-    ctx.fillText("HI " + game.hi, W - 20, 55);
+    ctx.fillText("HI " + (game.scores[0] ? game.scores[0].score : 0), W - 20, 55);
 
     // Speed meter (during the run-up / approach)
     if (game.phase === "approach" || game.phase === "tube" || game.phase === "run") {
@@ -351,15 +441,16 @@ function draw() {
   }
 
   if (game.state === "menu") {
-    centerText("STUNT CYCLE", 46, H / 2 - 30, "#0ff");
-    centerText("PRESS ENTER TO START", 18, H / 2 + 14);
-    centerText("HIGH SCORE  " + game.hi, 15, H / 2 + 44, "#0ff");
+    centerText("STUNT CYCLE", 44, 140, "#0ff");
+    centerText("PRESS ENTER TO START", 18, 182);
+    drawBoard(225);
   }
   if (game.state === "paused") centerText("PAUSED  (P)", 30, H / 2);
   if (game.state === "over") {
-    centerText("GAME OVER", 46, H / 2 - 20, "#f44");
-    centerText("SCORE " + game.score + "   HI " + game.hi, 18, H / 2 + 18);
-    centerText("PRESS ENTER TO PLAY AGAIN", 15, H / 2 + 46);
+    centerText("GAME OVER", 44, 110, "#f44");
+    centerText("SCORE " + game.score, 20, 146);
+    drawBoard(185);
+    if (lbEntry.style.display === "none") centerText("PRESS ENTER TO PLAY AGAIN", 15, 470);
   }
 }
 
@@ -377,9 +468,11 @@ function bindButton(id, code) {
 bindButton("btnUp", "ArrowUp"); bindButton("btnDown", "ArrowDown");
 bindButton("btnLeft", "ArrowLeft"); bindButton("btnRight", "ArrowRight");
 canvas.addEventListener("touchstart", e => { e.preventDefault(); initAudio();
-  if (game.state === "menu" || game.state === "over") startGame(); }, { passive: false });
+  if ((game.state === "menu" || game.state === "over") && lbEntry.style.display === "none") startGame();
+}, { passive: false });
 if ("ontouchstart" in window || navigator.maxTouchPoints > 0) document.getElementById("touch").style.display = "flex";
 
+fetchBoard();   // pull the shared leaderboard on load
 function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
