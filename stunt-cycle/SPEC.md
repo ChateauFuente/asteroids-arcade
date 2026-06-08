@@ -60,7 +60,10 @@ Game over at 0 lives; best score kept locally (`localStorage` key `stuntCycleHig
    overshoot past the landing ramp. The whole ramp length is a valid touchdown
    zone, so it's a forgiving speed *window*, not a point.
 2. **Landing angle (in air):** you must come down **rear-wheel-first** on the
-   ramp (or both wheels together matching the ramp). Front-wheel-first = crash.
+   ramp's **top slope** (or both wheels together matching the ramp). The ramp has
+   a **vertical front face** — coming in below the top edge smacks that face and
+   crashes. Only the sloped top, from the top edge down to the flat, is valid.
+   Front-wheel-first = crash.
    - Measured relative to the ramp slope `PHI`: at touchdown `rel = angle − PHI`.
      Safe when `−LEANBACK ≤ rel ≤ FRONT_EPS`.
    - `LEANBACK = 60% of vertical` (~54°) of allowed rear-first lean; `FRONT_EPS`
@@ -82,10 +85,14 @@ Game over at 0 lives; best score kept locally (`localStorage` key `stuntCycleHig
 - **Landing rule:** `PHI = atan2(LAND_RISE, LAND_LEN)`, `LEANBACK = 0.6·π/2`,
   `FRONT_EPS = 0.10`. Lowest wheel = `y + |AX·sin(angle)| + WHEEL_R`.
 - **Geometry (800×600):** ground `y=470`; top lane `y=150` (x 60→740); left tube
-  at `x=60`; takeoff ramp `x 150→240` rising 55; buses 26×34 from `x=262`;
-  landing ramp 120 long dropping 55. Up to ~13 buses fit.
-- **Outcomes:** bus contact / fall short = crash; touchdown on ramp with a safe
-  angle = cleared; past the ramp end, or wrong angle = crash.
+  at `x=60`; takeoff ramp `x 150→240` rising 55 with a vertical launch face;
+  buses 26×34 from `x=262`; landing ramp `LAND_LEN=160` long with a vertical front
+  face `LAND_RISE=35` tall (top edge ≈ bus-top height), then the sloped top, then
+  flat. Speed windows (sim, with landing tilt): ~3.0 wide at 2 buses tapering to
+  ~1.25 at 12; up to ~14 buses fit.
+- **Outcomes:** bus contact / fall short of the ramp / hitting the front face =
+  crash; touchdown on the top slope with a safe angle = cleared; past the ramp
+  end, or wrong angle = crash.
 
 Likely tuning knobs: `ACCEL`/`BRAKE`, `LEANBACK`/`FRONT_EPS` (landing strictness),
 `ROT`, `LAND_LEN` (window width), starting `numBuses`.

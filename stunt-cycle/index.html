@@ -107,7 +107,7 @@ const TUBE_X = 60;                                 // left tube joins the lanes
 const RAMP_X0 = 150, LIP_X = 240, LIP_Y = GY - 55; // takeoff ramp
 const TH = Math.atan2(55, LIP_X - RAMP_X0);        // takeoff angle
 const BUS_X0 = 262, BUS_W = 26, BUS_H = 34, BUS_TOP = GY - BUS_H;
-const LAND_LEN = 120, LAND_RISE = 55;
+const LAND_LEN = 160, LAND_RISE = 35;               // landing ramp: top slope + vertical front face
 const PHI = Math.atan2(LAND_RISE, LAND_LEN);        // landing-ramp slope
 const LEANBACK = 0.60 * (Math.PI / 2);             // allowed rear-first lean (60% of vertical)
 const FRONT_EPS = 0.10;                            // tiny tolerance for a both-wheels landing
@@ -121,13 +121,6 @@ function rampProfile(x) {
   if (x < LIP_X) return GY - (x - RAMP_X0) / (LIP_X - RAMP_X0) * 55;
   return LIP_Y;
 }
-function landY(x) {
-  const L0 = game.landStart, L1 = game.landEnd;
-  if (x <= L0) return GY - LAND_RISE;
-  if (x < L1) return (GY - LAND_RISE) + (x - L0) / (L1 - L0) * LAND_RISE;
-  return GY;
-}
-
 const game = {
   state: "menu",            // menu | playing | paused | over
   phase: "approach",        // approach | tube | run | air | done
@@ -232,18 +225,29 @@ function update() {
     }
   }
   else if (game.phase === "air") {
+    const prevX = b.x;
     if (keys["ArrowLeft"])  b.angle -= ROT;   // rotate nose up (rear down)
     if (keys["ArrowRight"]) b.angle += ROT;   // rotate nose down (front down)
     b.x += b.vx; b.y += b.vy; b.vy += G;
     const low = b.y + Math.abs(AX * Math.sin(b.angle)) + WHEEL_R;   // lowest wheel
+    const topY = GY - LAND_RISE;              // height of the ramp's top edge / front face
 
     if (b.x >= BUS_X0 && b.x <= game.busEnd && low >= BUS_TOP) { crash(); return; }  // into a bus
-    if (b.x < BUS_X0 && low >= GY) { crash(); return; }                              // fell short
-    if (b.x > game.busEnd && low >= landY(b.x)) {                                     // touchdown past buses
-      if (b.x > game.landEnd) { crash(); return; }                                   // missed the ramp
-      const rel = b.angle - PHI;        // 0 = both wheels flat; <0 rear-first; >0 front-first
-      if (rel <= FRONT_EPS && rel >= -LEANBACK) cleared(); else crash();
-      return;
+    if (b.x < game.landStart && low >= GY) { crash(); return; }                      // fell short of the ramp
+
+    if (b.x >= game.landStart) {
+      // The ramp has a VERTICAL FRONT FACE. Coming in below the top edge = you
+      // smack the face = crash. Only clearing the top edge lets you reach the slope.
+      if (prevX < game.landStart && low > topY) { crash(); return; }
+      if (b.x <= game.landEnd) {
+        // Valid landing zone is the top slope, from the top edge down to the flat.
+        const surf = topY + (b.x - game.landStart) / LAND_LEN * LAND_RISE;
+        if (low >= surf) {
+          const rel = b.angle - PHI;          // 0 = both wheels flat; <0 rear-first; >0 front-first
+          if (rel <= FRONT_EPS && rel >= -LEANBACK) cleared(); else crash();
+          return;
+        }
+      } else if (low >= GY) { crash(); return; }  // overshot past the ramp end
     }
     if (b.x > W + 40) crash();
   }
@@ -303,15 +307,22 @@ function draw() {
     ctx.moveTo(TUBE_X - 14, TOP_Y); ctx.lineTo(TUBE_X - 14, GY);
     ctx.moveTo(TUBE_X + 14, TOP_Y); ctx.lineTo(TUBE_X + 14, GY);
     ctx.stroke();
-    // Bottom jump lane: runway + takeoff ramp
-    ctx.beginPath(); ctx.moveTo(TUBE_X + 14, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.stroke();
+    // Bottom jump lane: runway + takeoff ramp (with a vertical launch face)
+    ctx.beginPath();
+    ctx.moveTo(TUBE_X + 14, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.lineTo(LIP_X, GY);
+    ctx.stroke();
 
     for (let i = 0; i < game.numBuses; i++) drawBus(BUS_X0 + i * BUS_W);
 
-    // Landing ramp
+    // Landing ramp: a solid wedge — vertical FRONT FACE (facing the buses), then
+    // the sloped top (the only valid landing surface), then flat ground.
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(game.landStart, GY - LAND_RISE); ctx.lineTo(game.landEnd, GY); ctx.lineTo(W, GY); ctx.stroke();
+    ctx.moveTo(game.landStart, GY);                 // base of the front face
+    ctx.lineTo(game.landStart, GY - LAND_RISE);     // up the vertical front face
+    ctx.lineTo(game.landEnd, GY);                   // down the top slope
+    ctx.lineTo(W, GY);                              // flat ground beyond
+    ctx.stroke();
 
     for (const p of game.debris) {
       ctx.globalAlpha = Math.max(0, p.life / p.maxLife);

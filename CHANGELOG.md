@@ -24,6 +24,11 @@ Built iteratively in a single development channel; dates reflect that work
   the original's platform/tube layout. In the air ← → rotate the bike; you must
   land **rear-wheel-first** on the ramp (front-first = crash), with a rear lean up
   to ~60% of vertical relative to the ramp counting as good.
+- **Solid ramps with vertical front faces + corrected landing zone.** Both ramps
+  now draw a vertical front face. Coming in below the landing ramp's top edge
+  smacks the face (crash) instead of counting as a landing; only the sloped top is
+  valid. Re-tuned ramp geometry (verified by simulation) so a real speed window
+  exists at every bus count.
 
 ### Asteroids
 - Hyperspace moved from **H** to the **Down arrow** (keeps the hand on the
