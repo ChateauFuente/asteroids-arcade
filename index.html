@@ -410,8 +410,13 @@ document.addEventListener("keyup", e => { keys[e.code] = false; });
 // --- Entities ---
 function makeShip() {
   return { x: W/2, y: H/2, angle: -Math.PI/2, vx: 0, vy: 0,
-           radius: 12, thrusting: false, invincible: 90, teleCooldown: 0 };
+           radius: 12, thrusting: false, invincible: 90, teleCooldown: 0, dead: false };
 }
+
+// Arcade-style pauses (at ~60fps): a beat after dying before the new ship
+// appears, and a breather between waves before the next one spawns.
+const RESPAWN_DELAY = 60;   // ~1 second
+const WAVE_DELAY = 120;     // ~2 seconds
 function makeAsteroid(x, y, size) {
   const lvl = game.level || 1;
   const speed = rand(0.4, 1.2) * (4 - size) * (1 + (lvl - 1) * 0.07) * settings.asteroidSpeed;
@@ -544,8 +549,20 @@ const game = {
   asteroids: [], bullets: [], particles: [], wormholes: [], blackhole: null,
   saucer: null, saucerTimer: 600, waveCount: 4,
   score: 0, lives: 3, level: 1, fireCooldown: 0, nextLife: 10000, frame: 0,
+  respawnTimer: 0, waveTimer: 0,
   allScores: loadAllScores(),
 };
+
+// Lose a life: blow up the ship, then either end the game or schedule a
+// delayed respawn (the ship reappears after RESPAWN_DELAY frames).
+function loseLife() {
+  const s = game.ship;
+  spawnExplosion(s.x, s.y, 30, "#fff", 4);
+  noiseBurst(0.5, 0.5, 700);
+  game.lives--;
+  if (game.lives <= 0) endGame();
+  else { s.dead = true; game.respawnTimer = RESPAWN_DELAY; }
+}
 
 // Each physics feature is an independent toggle now.
 function collisionsActive() { return settings.collisions; }
@@ -593,6 +610,7 @@ function startGame() {
   game.lives = settings.lives;
   game.level = 1;
   game.nextLife = 10000;
+  game.respawnTimer = 0; game.waveTimer = 0;
   game.bullets = []; game.particles = [];
   game.saucer = null; stopSaucerSound();
   game.saucerTimer = rand(500, 900) / settings.saucerFreq;
@@ -649,20 +667,14 @@ async function endGame() {
 }
 
 function hyperspace() {
-  if (game.state !== "playing") return;
+  if (game.state !== "playing" || game.ship.dead) return;
   const ship = game.ship;
   spawnExplosion(ship.x, ship.y, 10, "#88f", 3);
   playWarp();
   ship.x = rand(40, W - 40); ship.y = rand(40, H - 40);
   ship.vx = 0; ship.vy = 0;
-  if (Math.random() < 0.12) {
-    spawnExplosion(ship.x, ship.y, 30, "#fff", 4);
-    noiseBurst(0.5, 0.5, 700);
-    game.lives--;
-    if (game.lives <= 0) endGame(); else game.ship = makeShip();
-  } else {
-    ship.invincible = 30;
-  }
+  if (Math.random() < 0.12) loseLife();   // malfunction: explode at the new spot
+  else ship.invincible = 30;
 }
 
 function addScore(points) {
@@ -750,31 +762,38 @@ function update() {
 
   updateHeartbeat();
 
-  if (keys["ArrowLeft"])  ship.angle -= 0.06;
-  if (keys["ArrowRight"]) ship.angle += 0.06;
+  if (ship.dead) {
+    // Ship destroyed: wait out the delay, then bring in the next one.
+    stopThrustSound();
+    game.respawnTimer--;
+    if (game.respawnTimer <= 0) game.ship = makeShip();
+  } else {
+    if (keys["ArrowLeft"])  ship.angle -= 0.06;
+    if (keys["ArrowRight"]) ship.angle += 0.06;
 
-  ship.thrusting = !!keys["ArrowUp"];
-  if (ship.thrusting) {
-    ship.vx += Math.cos(ship.angle) * 0.12;
-    ship.vy += Math.sin(ship.angle) * 0.12;
-    startThrustSound();
-    spawnExplosion(ship.x - Math.cos(ship.angle)*ship.radius,
-                   ship.y - Math.sin(ship.angle)*ship.radius, 1, "#f80", 1.5);
-  } else stopThrustSound();
-  ship.vx *= 0.99; ship.vy *= 0.99;
-  ship.x += ship.vx; ship.y += ship.vy;
-  wrap(ship);
-  if (ship.invincible > 0) ship.invincible--;
+    ship.thrusting = !!keys["ArrowUp"];
+    if (ship.thrusting) {
+      ship.vx += Math.cos(ship.angle) * 0.12;
+      ship.vy += Math.sin(ship.angle) * 0.12;
+      startThrustSound();
+      spawnExplosion(ship.x - Math.cos(ship.angle)*ship.radius,
+                     ship.y - Math.sin(ship.angle)*ship.radius, 1, "#f80", 1.5);
+    } else stopThrustSound();
+    ship.vx *= 0.99; ship.vy *= 0.99;
+    ship.x += ship.vx; ship.y += ship.vy;
+    wrap(ship);
+    if (ship.invincible > 0) ship.invincible--;
 
-  if (game.fireCooldown > 0) game.fireCooldown--;
-  if (keys["Space"] && game.fireCooldown === 0) {
-    game.bullets.push({
-      x: ship.x + Math.cos(ship.angle)*ship.radius,
-      y: ship.y + Math.sin(ship.angle)*ship.radius,
-      vx: Math.cos(ship.angle)*7 + ship.vx, vy: Math.sin(ship.angle)*7 + ship.vy,
-      life: 60, enemy: false, teleCooldown: 0,
-    });
-    game.fireCooldown = 10; playFire();
+    if (game.fireCooldown > 0) game.fireCooldown--;
+    if (keys["Space"] && game.fireCooldown === 0) {
+      game.bullets.push({
+        x: ship.x + Math.cos(ship.angle)*ship.radius,
+        y: ship.y + Math.sin(ship.angle)*ship.radius,
+        vx: Math.cos(ship.angle)*7 + ship.vx, vy: Math.sin(ship.angle)*7 + ship.vy,
+        life: 60, enemy: false, teleCooldown: 0,
+      });
+      game.fireCooldown = 10; playFire();
+    }
   }
 
   for (const b of game.bullets) { b.x += b.vx; b.y += b.vy; b.life--; wrap(b); }
@@ -787,7 +806,7 @@ function update() {
   if (wormholesActive()) {
     applyWormholes(game.asteroids);
     applyWormholes(game.bullets);
-    applyWormholes([ship]);
+    if (!ship.dead) applyWormholes([ship]);
     if (game.saucer) applyWormholes([game.saucer]);
   }
   if (blackholeActive() && game.blackhole) {
@@ -811,12 +830,7 @@ function update() {
       game.saucer = null; stopSaucerSound();
     }
     // Ship: pulled every frame; dies if it crosses the horizon unshielded.
-    if (blackHolePull(ship) && ship.invincible === 0) {
-      spawnExplosion(ship.x, ship.y, 30, "#fff", 4);
-      noiseBurst(0.5, 0.5, 700);
-      game.lives--;
-      if (game.lives <= 0) endGame(); else game.ship = makeShip();
-    }
+    if (!ship.dead && blackHolePull(ship) && ship.invincible === 0) loseLife();
   }
 
   // Saucer
@@ -908,7 +922,7 @@ function update() {
   }
 
   // Things that can kill the ship
-  if (ship.invincible === 0) {
+  if (!ship.dead && ship.invincible === 0) {
     let hit = false;
     for (const a of game.asteroids)
       if (Math.hypot(a.x - ship.x, a.y - ship.y) < a.radius + ship.radius) { hit = true; break; }
@@ -919,17 +933,19 @@ function update() {
         const b = game.bullets[j];
         if (b.enemy && Math.hypot(b.x - ship.x, b.y - ship.y) < ship.radius) { game.bullets.splice(j,1); hit = true; break; }
       }
-    if (hit) {
-      spawnExplosion(ship.x, ship.y, 30, "#fff", 4);
-      noiseBurst(0.5, 0.5, 700);
-      game.lives--;
-      if (game.lives <= 0) endGame(); else game.ship = makeShip();
-    }
+    if (hit) loseLife();
   }
 
+  // Wave cleared: wait WAVE_DELAY frames (a breather) before the next wave.
   if (game.asteroids.length === 0) {
-    game.level++;
-    spawnWave(3 + game.level);
+    if (game.waveTimer <= 0) game.waveTimer = WAVE_DELAY;
+  }
+  if (game.waveTimer > 0) {
+    game.waveTimer--;
+    if (game.waveTimer <= 0 && game.asteroids.length === 0) {
+      game.level++;
+      spawnWave(3 + game.level);
+    }
   }
 }
 
@@ -983,7 +999,7 @@ function draw() {
   }
 
   const ship = game.ship;
-  if ((game.state === "playing" || game.state === "paused") &&
+  if ((game.state === "playing" || game.state === "paused") && !ship.dead &&
       !(ship.invincible > 0 && Math.floor(ship.invincible / 5) % 2)) {
     ctx.save();
     ctx.translate(ship.x, ship.y); ctx.rotate(ship.angle);
