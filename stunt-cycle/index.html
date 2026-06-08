@@ -18,8 +18,8 @@
   #back { color: #0ff; text-decoration: none; }
   #touch { display: none; gap: 10px; margin-top: 14px; }
   #touch button {
-    width: 150px; height: 60px; border-radius: 12px; background: #111; color: #0ff;
-    border: 1px solid #0ff; font-size: 18px; letter-spacing: 2px; touch-action: none;
+    width: 64px; height: 58px; border-radius: 12px; background: #111; color: #0ff;
+    border: 1px solid #0ff; font-size: 18px; touch-action: none;
   }
   #touch button:active { background: #033; }
 </style>
@@ -28,9 +28,12 @@
   <div id="stage">
     <canvas id="game" width="800" height="600"></canvas>
   </div>
-  <div id="hint">HOLD &#8593; or SPACE TO REV &bull; RELEASE TO JUMP &bull; CLEAR THE BUSES, REACH THE RAMP, DON'T OVERSHOOT &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
+  <div id="hint">TOP LANE: &#8593; FASTER / &#8595; SLOWER &bull; TUBES DOWN TO THE JUMP &bull; IN AIR: &#8592; &#8594; ANGLE (land rear wheel first on the ramp) &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
   <div id="touch">
-    <button id="btnRev">HOLD&nbsp;TO&nbsp;REV</button>
+    <button id="btnUp">&#8593;</button>
+    <button id="btnDown">&#8595;</button>
+    <button id="btnLeft">&#8634;</button>
+    <button id="btnRight">&#8635;</button>
   </div>
 
 <script>
@@ -49,10 +52,8 @@ if (_hosted && _key !== ACCESS_KEY) {
 document.getElementById("back").href = ".." + (_key ? "/index.html?key=" + encodeURIComponent(_key) : "/index.html");
 
 // =====================================================================
-//  STUNT CYCLE  —  wireframe bus jump, faithful to Atari's 1976 game:
-//  twist the throttle to set speed (no steering, no air control), clear
-//  the buses, and land on the ramp. Too slow = into the buses; too fast
-//  = overshoot off the end.
+//  STUNT CYCLE  —  top run-up lane (set speed) → tube → jump lane →
+//  clear the buses → land rear-wheel-first on the ramp.
 // =====================================================================
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -90,32 +91,37 @@ let engine = null;
 function startEngine() {
   if (!actx || engine) return;
   const o = actx.createOscillator(), g = actx.createGain();
-  o.type = "sawtooth"; o.frequency.value = 60; g.gain.value = 0.06;
+  o.type = "sawtooth"; o.frequency.value = 60; g.gain.value = 0.05;
   o.connect(g); g.connect(master); o.start(); engine = { o };
 }
-function setEngine(power) { if (engine) engine.o.frequency.value = 60 + power * 2.6; }
+function setEngine(speed) { if (engine) engine.o.frequency.value = 60 + speed * 14; }
 function stopEngine() { if (engine) { engine.o.stop(); engine.o.disconnect(); engine = null; } }
-function sndJump() { stopEngine(); tone(280, 0.25, "sawtooth", 0.18); noise(0.2, 0.18, 1500); }
+function sndJump() { tone(280, 0.22, "sawtooth", 0.16); noise(0.18, 0.16, 1500); }
 function sndCrash() { stopEngine(); noise(0.6, 0.5, 700); tone(90, 0.5, "square", 0.15); }
 function sndClear() { tone(523, 0.1, "square", 0.18); tone(784, 0.16, "square", 0.18, 0.1); }
 
-// --- Geometry (side view) ---
-const GY = 470;
-const RAMP_X0 = 150, LIP_X = 240, LIP_Y = GY - 55;   // takeoff ramp
-const TH = Math.atan2(55, LIP_X - RAMP_X0);          // ramp angle
+// --- Geometry ---
+const GY = 470;                                   // bottom ground / jump lane
+const TOP_Y = 150, TOP_LEFT = 60, TOP_RIGHT = 740; // top run-up lane
+const TUBE_X = 60;                                 // left tube joins the lanes
+const RAMP_X0 = 150, LIP_X = 240, LIP_Y = GY - 55; // takeoff ramp
+const TH = Math.atan2(55, LIP_X - RAMP_X0);        // takeoff angle
 const BUS_X0 = 262, BUS_W = 26, BUS_H = 34, BUS_TOP = GY - BUS_H;
 const LAND_LEN = 120, LAND_RISE = 55;
-const START_X = 50, WHEEL_R = 9;
+const PHI = Math.atan2(LAND_RISE, LAND_LEN);        // landing-ramp slope
+const LEANBACK = 0.60 * (Math.PI / 2);             // allowed rear-first lean (60% of vertical)
+const FRONT_EPS = 0.10;                            // tiny tolerance for a both-wheels landing
+const WHEEL_R = 9, AX = 12;                         // wheel radius, half wheelbase
 const G = 0.34;
-const MIN_S = 4, MAX_S = 15;       // launch speed range (power 0..100)
-const POWER_RATE = 0.7;            // power fill per frame (slower = more control)
+const MIN_S = 1.5, MAX_S = 15;
+const ACCEL = 0.18, BRAKE = 0.22, ROT = 0.045;
 
-function rampProfile(x) {           // ground height on the takeoff side
+function rampProfile(x) {
   if (x <= RAMP_X0) return GY;
   if (x < LIP_X) return GY - (x - RAMP_X0) / (LIP_X - RAMP_X0) * 55;
   return LIP_Y;
 }
-function landY(x) {                 // landing-ramp height past the buses
+function landY(x) {
   const L0 = game.landStart, L1 = game.landEnd;
   if (x <= L0) return GY - LAND_RISE;
   if (x < L1) return (GY - LAND_RISE) + (x - L0) / (L1 - L0) * LAND_RISE;
@@ -124,11 +130,10 @@ function landY(x) {                 // landing-ramp height past the buses
 
 const game = {
   state: "menu",            // menu | playing | paused | over
-  phase: "rev",             // rev | run | air
+  phase: "approach",        // approach | tube | run | air | done
   lives: 3, score: 0, numBuses: 2,
   hi: parseInt(localStorage.getItem("stuntCycleHigh") || "0", 10),
-  power: 0,
-  bike: { x: START_X, y: GY - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 0 },
+  bike: { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 },
   debris: [], crashTimer: 0, clearTimer: 0,
   busEnd: 0, landStart: 0, landEnd: 0, frame: 0,
 };
@@ -139,22 +144,14 @@ function computeLayout() {
   game.landEnd = game.landStart + LAND_LEN;
 }
 function resetBike() {
-  game.phase = "rev"; game.power = 0;
-  game.bike = { x: START_X, y: GY - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 0 };
+  game.phase = "approach";
+  game.bike = { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 };
 }
 function startGame() {
   game.state = "playing";
   game.lives = 3; game.score = 0; game.numBuses = 2;
   game.debris = []; game.crashTimer = 0; game.clearTimer = 0;
   computeLayout(); resetBike();
-}
-function launch() {
-  if (game.phase !== "rev") return;
-  game.bike.speed = MIN_S + game.power / 100 * (MAX_S - MIN_S);
-  game.phase = "run"; sndJump();
-}
-function releaseThrottle() {
-  if (game.state === "playing" && game.phase === "rev" && game.power > 3) launch();
 }
 function spawnDebris(x, y) {
   for (let i = 0; i < 18; i++) {
@@ -174,21 +171,17 @@ function cleared() {
   game.clearTimer = 50; game.phase = "done"; computeLayout();
 }
 
-// --- Input (throttle + brake only — no steering, true to the original) ---
+// --- Input ---
 const keys = {};
 document.addEventListener("keydown", e => {
   initAudio();
   if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
   if (e.code === "Enter" && (game.state === "menu" || game.state === "over")) startGame();
-  if (e.code === "Space" && !e.repeat && game.state === "playing") releaseThrottle();
   if (e.code === "KeyP" || e.code === "Escape") togglePause();
   if (e.code === "KeyM") toggleMute();
 });
-document.addEventListener("keyup", e => {
-  keys[e.code] = false;
-  if (e.code === "ArrowUp") releaseThrottle();
-});
+document.addEventListener("keyup", e => { keys[e.code] = false; });
 function togglePause() {
   if (game.state === "playing") { game.state = "paused"; stopEngine(); }
   else if (game.state === "paused") game.state = "playing";
@@ -211,33 +204,48 @@ function update() {
   }
   if (game.clearTimer > 0) { if (--game.clearTimer === 0) resetBike(); return; }
 
-  if (game.phase === "rev") {
+  if (game.phase === "approach") {
     startEngine();
-    if (keys["ArrowUp"] || keys["Space"]) game.power = Math.min(100, game.power + POWER_RATE);
-    setEngine(game.power);
-    b.angle = -game.power / 100 * 0.5;     // throttle wheelie, just for show
+    if (keys["ArrowUp"]) b.speed += ACCEL;
+    if (keys["ArrowDown"]) b.speed -= BRAKE;
+    b.speed = Math.max(MIN_S, Math.min(MAX_S, b.speed));
+    setEngine(b.speed);
+    b.x -= b.speed;                    // drive right -> left
+    b.y = TOP_Y - WHEEL_R; b.angle = 0; b.face = -1;
+    if (b.x <= TOP_LEFT) { b.x = TUBE_X; game.phase = "tube"; }
+  }
+  else if (game.phase === "tube") {
+    setEngine(b.speed);
+    b.face = 1; b.angle = Math.PI / 2;  // pointing down through the tube
+    b.x = TUBE_X;
+    b.y += Math.max(4, b.speed);
+    if (b.y >= GY - WHEEL_R) { b.y = GY - WHEEL_R; b.angle = 0; game.phase = "run"; sndJump(); }
   }
   else if (game.phase === "run") {
-    b.x += b.speed;
+    setEngine(b.speed);
+    b.face = 1; b.x += b.speed;
     b.y = rampProfile(b.x) - WHEEL_R;
-    b.angle = -TH;
+    b.angle = (b.x > RAMP_X0 && b.x < LIP_X) ? -TH : (b.x >= LIP_X ? -TH : 0);
     if (b.x >= LIP_X) {
       b.vx = Math.cos(TH) * b.speed; b.vy = -Math.sin(TH) * b.speed;
-      game.phase = "air";
+      b.angle = -TH; game.phase = "air"; stopEngine();
     }
   }
   else if (game.phase === "air") {
+    if (keys["ArrowLeft"])  b.angle -= ROT;   // rotate nose up (rear down)
+    if (keys["ArrowRight"]) b.angle += ROT;   // rotate nose down (front down)
     b.x += b.vx; b.y += b.vy; b.vy += G;
-    b.angle = Math.atan2(b.vy, b.vx);       // nose follows the arc (no control)
-    const bottom = b.y + WHEEL_R;
+    const low = b.y + Math.abs(AX * Math.sin(b.angle)) + WHEEL_R;   // lowest wheel
 
-    if (b.x >= BUS_X0 && b.x <= game.busEnd && bottom >= BUS_TOP) { crash(); return; } // into a bus
-    if (b.x < BUS_X0 && bottom >= GY) { crash(); return; }                              // fell short
-    if (b.x > game.busEnd && bottom >= landY(b.x)) {                                    // touchdown past buses
-      if (b.x <= game.landEnd) cleared(); else crash();                                 // on ramp = safe, beyond = overshoot
+    if (b.x >= BUS_X0 && b.x <= game.busEnd && low >= BUS_TOP) { crash(); return; }  // into a bus
+    if (b.x < BUS_X0 && low >= GY) { crash(); return; }                              // fell short
+    if (b.x > game.busEnd && low >= landY(b.x)) {                                     // touchdown past buses
+      if (b.x > game.landEnd) { crash(); return; }                                   // missed the ramp
+      const rel = b.angle - PHI;        // 0 = both wheels flat; <0 rear-first; >0 front-first
+      if (rel <= FRONT_EPS && rel >= -LEANBACK) cleared(); else crash();
       return;
     }
-    if (b.x > W + 40) crash();               // flew off the end
+    if (b.x > W + 40) crash();
   }
 }
 
@@ -254,30 +262,24 @@ function roundRectPath(x, y, w, h, r) {
   ctx.closePath();
 }
 function drawBus(bx) {
-  const bw = BUS_W - 5;                       // small gap between buses
+  const bw = BUS_W - 5;
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
-  // body with rounded corners
   roundRectPath(bx, BUS_TOP, bw, BUS_H - 5, 6); ctx.stroke();
-  // window strip
   roundRectPath(bx + 3, BUS_TOP + 4, bw - 6, 9, 2); ctx.stroke();
-  ctx.beginPath();                            // window dividers
-  ctx.moveTo(bx + bw * 0.5, BUS_TOP + 4); ctx.lineTo(bx + bw * 0.5, BUS_TOP + 13);
-  ctx.stroke();
-  // wheels
+  ctx.beginPath(); ctx.moveTo(bx + bw * 0.5, BUS_TOP + 4); ctx.lineTo(bx + bw * 0.5, BUS_TOP + 13); ctx.stroke();
   ctx.beginPath(); ctx.arc(bx + 6, GY - 4, 3, 0, Math.PI * 2);
-  ctx.moveTo(bx + bw - 3, GY - 4); ctx.arc(bx + bw - 6, GY - 4, 3, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.moveTo(bx + bw - 3, GY - 4); ctx.arc(bx + bw - 6, GY - 4, 3, 0, Math.PI * 2); ctx.stroke();
 }
-function drawBike(x, y, angle) {
+function drawBike(x, y, angle, face) {
   ctx.save();
-  ctx.translate(x, y); ctx.rotate(angle);
+  ctx.translate(x, y); ctx.scale(face, 1); ctx.rotate(angle * face);
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(-12, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(12, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-AX, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();   // rear
+  ctx.beginPath(); ctx.arc(AX, 0, WHEEL_R, 0, Math.PI * 2); ctx.stroke();    // front
   ctx.beginPath();
-  ctx.moveTo(-12, 0); ctx.lineTo(0, -7); ctx.lineTo(12, 0);
+  ctx.moveTo(-AX, 0); ctx.lineTo(0, -7); ctx.lineTo(AX, 0);
   ctx.moveTo(0, -7); ctx.lineTo(6, -12); ctx.stroke();
-  ctx.strokeStyle = "#0ff";                   // rider
+  ctx.strokeStyle = "#0ff";
   ctx.beginPath();
   ctx.moveTo(-2, -7); ctx.lineTo(-4, -18); ctx.lineTo(8, -14);
   ctx.moveTo(-4, -18); ctx.arc(-4, -21, 3, 0, Math.PI * 2);
@@ -292,14 +294,21 @@ function centerText(t, size, y, color = "#fff") {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  // Runway + takeoff ramp
-  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.stroke();
-
   if (game.state !== "menu") {
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    // Top run-up lane
+    ctx.beginPath(); ctx.moveTo(TUBE_X + 14, TOP_Y); ctx.lineTo(TOP_RIGHT, TOP_Y); ctx.stroke();
+    // Left tube connecting the two lanes
+    ctx.beginPath();
+    ctx.moveTo(TUBE_X - 14, TOP_Y); ctx.lineTo(TUBE_X - 14, GY);
+    ctx.moveTo(TUBE_X + 14, TOP_Y); ctx.lineTo(TUBE_X + 14, GY);
+    ctx.stroke();
+    // Bottom jump lane: runway + takeoff ramp
+    ctx.beginPath(); ctx.moveTo(TUBE_X + 14, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.stroke();
+
     for (let i = 0; i < game.numBuses; i++) drawBus(BUS_X0 + i * BUS_W);
 
-    // Landing ramp (elevated near the buses, sloping down to the ground)
+    // Landing ramp
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(game.landStart, GY - LAND_RISE); ctx.lineTo(game.landEnd, GY); ctx.lineTo(W, GY); ctx.stroke();
@@ -310,7 +319,7 @@ function draw() {
     }
     ctx.globalAlpha = 1;
 
-    if (game.phase !== "done") drawBike(game.bike.x, game.bike.y, game.bike.angle);
+    if (game.phase !== "done") drawBike(game.bike.x, game.bike.y, game.bike.angle, game.bike.face);
 
     ctx.fillStyle = "#fff"; ctx.font = "20px 'Courier New', monospace"; ctx.textAlign = "left";
     ctx.fillText("SCORE " + game.score, 20, 30);
@@ -319,14 +328,15 @@ function draw() {
     ctx.fillText("BUSES " + game.numBuses, W - 20, 30);
     ctx.fillText("HI " + game.hi, W - 20, 55);
 
-    if (game.phase === "rev") {
+    // Speed meter (during the run-up / approach)
+    if (game.phase === "approach" || game.phase === "tube" || game.phase === "run") {
       ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2; ctx.strokeRect(20, H - 40, 220, 18);
-      ctx.fillStyle = "#0ff"; ctx.fillRect(22, H - 38, 216 * game.power / 100, 14);
+      ctx.fillStyle = "#0ff"; ctx.fillRect(22, H - 38, 216 * (game.bike.speed - MIN_S) / (MAX_S - MIN_S), 14);
       ctx.font = "13px 'Courier New', monospace"; ctx.textAlign = "left";
-      ctx.fillText("THROTTLE", 20, H - 48);
+      ctx.fillText("SPEED", 20, H - 48);
     }
-    if (game.clearTimer > 0) centerText("CLEARED!", 36, 150, "#0ff");
-    if (game.crashTimer > 0) centerText("CRASH!", 36, 150, "#f44");
+    if (game.clearTimer > 0) centerText("CLEARED!", 36, 120, "#0ff");
+    if (game.crashTimer > 0) centerText("CRASH!", 36, 120, "#f44");
   }
 
   if (game.state === "menu") {
@@ -342,18 +352,19 @@ function draw() {
   }
 }
 
-// --- Touch: a single REV button (hold to throttle, release to jump) ---
-function bindRev(id) {
+// --- Touch ---
+function bindButton(id, code) {
   const el = document.getElementById(id);
   const down = e => { e.preventDefault(); initAudio();
     if (game.state === "menu" || game.state === "over") { startGame(); return; }
-    keys["ArrowUp"] = true; };
-  const up = e => { e.preventDefault(); keys["ArrowUp"] = false; releaseThrottle(); };
+    keys[code] = true; };
+  const up = e => { e.preventDefault(); keys[code] = false; };
   el.addEventListener("touchstart", down, { passive: false });
   el.addEventListener("touchend", up, { passive: false });
   el.addEventListener("mousedown", down); el.addEventListener("mouseup", up); el.addEventListener("mouseleave", up);
 }
-bindRev("btnRev");
+bindButton("btnUp", "ArrowUp"); bindButton("btnDown", "ArrowDown");
+bindButton("btnLeft", "ArrowLeft"); bindButton("btnRight", "ArrowRight");
 canvas.addEventListener("touchstart", e => { e.preventDefault(); initAudio();
   if (game.state === "menu" || game.state === "over") startGame(); }, { passive: false });
 if ("ontouchstart" in window || navigator.maxTouchPoints > 0) document.getElementById("touch").style.display = "flex";

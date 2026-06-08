@@ -16,11 +16,14 @@ Built iteratively in a single development channel; dates reflect that work
 - Wireframe Atari-style bus jump: rev a throttle meter, launch off the ramp, clear
   the buses, and land on the ramp. Each clear adds a bus; 3 lives; local high
   score; synthesized engine/jump/crash/clear sound; touch controls.
-- **Reworked to match the 1976 original** after review: removed the invented
-  in-air rotation; it's now throttle-only (no steering, no air control) with a
-  forgiving **speed window** — too slow = into the buses, too fast = overshoot.
-  Slowed the throttle fill for control, and redrew the buses with rounded bodies,
-  windows, and wheels.
+- **Reworked the landing/throttle** after review: removed the original fussy
+  single-point landing; forgiving **speed window** (too slow = into the buses,
+  too fast = overshoot) and redrew buses with rounded bodies, windows, and wheels.
+- **Two-lane run-up + tube + tire landing.** Added a top run-up lane (drive
+  right→left, adjust speed the whole way) that tubes down to the jump lane, like
+  the original's platform/tube layout. In the air ← → rotate the bike; you must
+  land **rear-wheel-first** on the ramp (front-first = crash), with a rear lean up
+  to ~60% of vertical relative to the ramp counting as good.
 
 ### Asteroids
 - Hyperspace moved from **H** to the **Down arrow** (keeps the hand on the
