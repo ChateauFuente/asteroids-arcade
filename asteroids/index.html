@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Dave Z's Asteroids on Steroids</title>
+<style>
+  html, body {
+    margin: 0; height: 100%;
+    background: #000;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-family: "Courier New", monospace;
+    color: #fff;
+    -webkit-user-select: none; user-select: none;
+  }
+  /* The stage holds the canvas with overlays stacked on top of it. */
+  #stage { position: relative; width: 800px; max-width: 100vw; }
+  canvas {
+    display: block; width: 100%; height: auto;
+    border: 1px solid #333; background: #000; touch-action: none;
+  }
+
+  /* Shared overlay look: a translucent panel centered over the canvas. */
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    gap: 10px; padding: 18px 16px; box-sizing: border-box;
+    background: rgba(0,0,0,0.82);
+    overflow: auto;
+  }
+  .overlay h1 { font-size: 40px; letter-spacing: 6px; margin: 0; }
+  #title { text-align: center; line-height: 1; margin: 4px 0 2px; }
+  .title-top { color: #0ff; font-size: 21px; letter-spacing: 7px; margin-bottom: 3px; }
+  .title-bottom { color: #0ff; font-size: 20px; letter-spacing: 5px; margin-top: 4px; }
+  .board { width: 300px; max-width: 84%; font-size: 14px; color: #0ff; margin: 2px 0; }
+  .board-title { color: #888; letter-spacing: 2px; font-size: 12px; text-align: center; margin-bottom: 3px; }
+  .board-row { display: flex; justify-content: space-between; padding: 1px 8px; }
+  .board-row.dim { color: #555; }
+  .board-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px; }
+  .board-nav .board-title { margin: 0; letter-spacing: 1px; font-size: 12px; color: #0ff; white-space: nowrap; }
+  .arrow {
+    background: #111; color: #0ff; border: 1px solid #0ff; border-radius: 6px;
+    width: 30px; height: 26px; font-size: 12px; cursor: pointer; flex: none;
+  }
+  .arrow:hover { background: #033; }
+  #initialsInput {
+    width: 120px; text-align: center; font-family: inherit; font-size: 30px;
+    letter-spacing: 10px; text-transform: uppercase; text-indent: 10px;
+    background: #001; color: #0ff; border: 1px solid #0ff; border-radius: 6px; padding: 6px 0;
+  }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .seg button, #startBtn, .over-btn {
+    background: #111; color: #0ff; border: 1px solid #0ff;
+    padding: 8px 14px; font-family: inherit; font-size: 14px;
+    border-radius: 8px; cursor: pointer; letter-spacing: 1px;
+  }
+  .seg button.sel { background: #0ff; color: #000; font-weight: bold; }
+  .seg button:hover, #startBtn:hover, .over-btn:hover { background: #033; }
+  .seg button.sel:hover { background: #0ff; }
+
+  .group-label { font-size: 12px; color: #888; letter-spacing: 2px; margin-top: 4px; }
+
+  .checks { width: 320px; max-width: 86%; display: flex; flex-direction: column; gap: 7px; }
+  .checks label {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 14px; color: #ccc; cursor: pointer;
+  }
+  .checks input { accent-color: #0ff; width: 17px; height: 17px; cursor: pointer; }
+
+  .slider { width: 320px; max-width: 86%; }
+  .slider input:disabled { opacity: 0.35; }
+  .slider.disabled label { opacity: 0.4; }
+  .slider label {
+    display: flex; justify-content: space-between;
+    font-size: 13px; color: #ccc; margin-bottom: 2px;
+  }
+  .slider label span { color: #0ff; }
+  .slider input[type=range] { width: 100%; accent-color: #0ff; }
+
+  #startBtn { font-size: 18px; padding: 10px 22px; margin-top: 6px; }
+  #overMenu .over-title { font-size: 40px; letter-spacing: 4px; }
+  #overScore { font-size: 18px; }
+
+  #hint { margin-top: 12px; font-size: 12px; color: #888; letter-spacing: 1px; text-align: center; }
+
+  #touch { display: none; gap: 10px; margin-top: 14px; }
+  #touch button {
+    width: 60px; height: 60px; border-radius: 12px;
+    background: #111; color: #0ff; border: 1px solid #0ff;
+    font-size: 22px; touch-action: none;
+  }
+  #touch button:active { background: #033; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="800" height="600"></canvas>
+
+    <!-- ===== START MENU ===== -->
+    <div id="menu" class="overlay">
+      <div id="title">
+        <div class="title-top">DAVE Z'S</div>
+        <h1>ASTEROIDS</h1>
+        <div class="title-bottom">ON STEROIDS</div>
+      </div>
+      <div id="menuBoard" class="board"></div>
+
+      <div class="group-label">DIFFICULTY</div>
+      <div class="row seg" id="presets">
+        <button data-preset="easy">EASY</button>
+        <button data-preset="normal" class="sel">NORMAL</button>
+        <button data-preset="hard">HARD</button>
+      </div>
+
+      <div class="slider">
+        <label>ASTEROID SPEED <span id="vSpeed"></span></label>
+        <input type="range" id="sSpeed" min="0.5" max="2" step="0.1">
+      </div>
+      <div class="slider">
+        <label>STARTING ASTEROIDS <span id="vCount"></span></label>
+        <input type="range" id="sCount" min="2" max="8" step="1">
+      </div>
+      <div class="slider">
+        <label>SAUCER FREQUENCY <span id="vSaucer"></span></label>
+        <input type="range" id="sSaucer" min="0.3" max="2" step="0.1">
+      </div>
+      <div class="slider">
+        <label>STARTING LIVES <span id="vLives"></span></label>
+        <input type="range" id="sLives" min="1" max="6" step="1">
+      </div>
+
+      <div class="group-label">PHYSICS &mdash; MIX &amp; MATCH (NONE = ORIGINAL)</div>
+      <div class="checks" id="modes">
+        <label><input type="checkbox" id="chkCollide"> Asteroid Collisions</label>
+        <label><input type="checkbox" id="chkWormhole"> Wormholes</label>
+        <label><input type="checkbox" id="chkBlackhole"> Black Hole</label>
+      </div>
+      <div class="slider" id="gravityRow">
+        <label>BLACK HOLE GRAVITY <span id="vGravity"></span></label>
+        <input type="range" id="sGravity" min="0" max="2600" step="50">
+      </div>
+
+      <div class="group-label">SOUND</div>
+      <div class="slider">
+        <label>HEARTBEAT VOLUME <span id="vHeart"></span></label>
+        <input type="range" id="sHeart" min="0" max="2.5" step="0.1">
+      </div>
+      <div class="slider">
+        <label>EFFECTS VOLUME <span id="vFx"></span></label>
+        <input type="range" id="sFx" min="0" max="1.5" step="0.1">
+      </div>
+
+      <button id="startBtn">START GAME &#9654;</button>
+    </div>
+
+    <!-- ===== PAUSE ===== -->
+    <div id="pauseMenu" class="overlay" style="display:none; justify-content:center;">
+      <div class="over-title">PAUSED</div>
+      <div class="row" style="margin-top:10px;">
+        <button class="over-btn" id="resumeBtn">RESUME</button>
+        <button class="over-btn" id="pauseMenuBtn">MENU</button>
+      </div>
+    </div>
+
+    <!-- ===== GAME OVER ===== -->
+    <div id="overMenu" class="overlay" style="display:none; justify-content:center;">
+      <div class="over-title">GAME OVER</div>
+      <div id="overScore">SCORE 0</div>
+      <div id="initialsEntry" style="display:none; flex-direction:column; align-items:center; gap:8px;">
+        <div style="color:#ff0; font-size:14px; letter-spacing:1px;">NEW HIGH SCORE! ENTER INITIALS</div>
+        <input id="initialsInput" maxlength="3" autocomplete="off" spellcheck="false" placeholder="AAA">
+        <button class="over-btn" id="saveInitialsBtn">SAVE</button>
+      </div>
+      <div id="overBoard" class="board"></div>
+      <div class="row" style="margin-top:10px;">
+        <button class="over-btn" id="againBtn">PLAY AGAIN</button>
+        <button class="over-btn" id="menuBtn">MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; &#8595; HYPERSPACE &bull; P PAUSE &bull; M MUTE</div>
+
+  <div id="touch">
+    <button id="btnLeft">&#8634;</button>
+    <button id="btnThrust">&#9650;</button>
+    <button id="btnRight">&#8635;</button>
+    <button id="btnHyper">&#10022;</button>
+    <button id="btnFire">&#9679;</button>
+    <button id="btnPause">&#9208;</button>
+  </div>
+
+<script>
+// =====================================================================
+//  ASTEROIDS  —  start menu with difficulty sliders, three physics
+//  modes (original / asteroid collisions / wormholes), and separate
+//  heartbeat + effects volume. One self-contained file.
+// =====================================================================
+
+// ---- Access gate -------------------------------------------------------
+// When this page is hosted online, it requires ?key=... in the URL so the
+// link can't be guessed. Local files (opened from your Mac) skip the check.
+const ACCESS_KEY = "arcade-3f9k2x7q";   // change this to your own secret word
+const _hosted = location.protocol.indexOf("http") === 0 &&
+                location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
+if (_hosted && new URLSearchParams(location.search).get("key") !== ACCESS_KEY) {
+  document.body.innerHTML =
+    '<div style="color:#0ff;font-family:monospace;text-align:center;padding-top:28vh;font-size:18px;line-height:1.6;">' +
+    '&#128274; This game is private.<br><br>You need the full link (with its access key) to play.</div>';
+  throw new Error("Asteroids: access key required");
+}
+// ------------------------------------------------------------------------
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+
+const rand = (min, max) => Math.random() * (max - min) + min;
+function wrap(obj) {
+  if (obj.x < 0) obj.x += W;
+  if (obj.x > W) obj.x -= W;
+  if (obj.y < 0) obj.y += H;
+  if (obj.y > H) obj.y -= H;
+}
+
+// --- Player-chosen settings (driven by the menu controls) ---
+const settings = {
+  asteroidSpeed: 1.0,
+  asteroidCount: 4,
+  saucerFreq: 1.0,
+  lives: 3,
+  // Physics features are independent toggles — combine any of them.
+  collisions: false,
+  wormholes: false,
+  blackhole: false,
+  blackholeStrength: 800,   // 0 = no gravity, 2600 = the strong original pull
+  heartVolume: 1.4,
+  fxVolume: 0.8,
+};
+
+// =====================================================================
+//  SOUND  —  three-stage mixer: effects and heartbeat each get their
+//  own volume bus, both feeding a master (mute) bus. All synthesized.
+// =====================================================================
+let audioCtx = null, masterGain = null, fxGain = null, heartGain = null;
+let muted = false;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = muted ? 0 : 1;
+    masterGain.connect(audioCtx.destination);
+    fxGain = audioCtx.createGain();
+    fxGain.gain.value = settings.fxVolume;
+    fxGain.connect(masterGain);
+    heartGain = audioCtx.createGain();
+    heartGain.gain.value = settings.heartVolume;
+    heartGain.connect(masterGain);
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+}
+function applyVolumes() {
+  if (fxGain) fxGain.gain.value = settings.fxVolume;
+  if (heartGain) heartGain.gain.value = settings.heartVolume;
+}
+function toggleMute() {
+  muted = !muted;
+  if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+}
+
+// A scheduled tone. Defaults to the effects bus; pass heartGain for beats.
+function tone(freq, dur, type = "square", vol = 0.15, delay = 0, dest = null) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  osc.connect(gain); gain.connect(dest || fxGain);
+  const t = audioCtx.currentTime + delay;
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.start(t); osc.stop(t + dur);
+}
+
+function playFire() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = "sawtooth";
+  const now = audioCtx.currentTime;
+  osc.frequency.setValueAtTime(1100, now);
+  osc.frequency.exponentialRampToValueAtTime(280, now + 0.14);
+  gain.gain.setValueAtTime(0.16, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+  osc.connect(gain); gain.connect(fxGain);
+  osc.start(now); osc.stop(now + 0.14);
+}
+function playWarp() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = "triangle";
+  const now = audioCtx.currentTime;
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(1600, now + 0.25);
+  gain.gain.setValueAtTime(0.14, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+  osc.connect(gain); gain.connect(fxGain);
+  osc.start(now); osc.stop(now + 0.25);
+}
+function playExtraLife() {
+  tone(523, 0.12, "square", 0.18, 0);
+  tone(659, 0.12, "square", 0.18, 0.12);
+  tone(784, 0.18, "square", 0.18, 0.24);
+}
+function noiseBurst(duration = 0.3, volume = 0.4, cutoff = 1000) {
+  if (!audioCtx) return;
+  const size = Math.floor(audioCtx.sampleRate * duration);
+  const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "lowpass"; filter.frequency.value = cutoff;
+  const gain = audioCtx.createGain();
+  const now = audioCtx.currentTime;
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  noise.connect(filter); filter.connect(gain); gain.connect(fxGain);
+  noise.start();
+}
+
+let thrustNode = null;
+function startThrustSound() {
+  if (!audioCtx || thrustNode) return;
+  const size = audioCtx.sampleRate;
+  const buffer = audioCtx.createBuffer(1, size, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer; src.loop = true;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "lowpass"; filter.frequency.value = 320;
+  const gain = audioCtx.createGain(); gain.gain.value = 0.18;
+  src.connect(filter); filter.connect(gain); gain.connect(fxGain);
+  src.start();
+  thrustNode = { src };
+}
+function stopThrustSound() {
+  if (!thrustNode) return;
+  thrustNode.src.stop(); thrustNode.src.disconnect(); thrustNode = null;
+}
+
+let saucerSound = null;
+function startSaucerSound(big) {
+  if (!audioCtx || saucerSound) return;
+  const osc = audioCtx.createOscillator();
+  osc.type = "square";
+  const gain = audioCtx.createGain(); gain.gain.value = 0.05;
+  osc.connect(gain); gain.connect(fxGain);
+  osc.start();
+  saucerSound = { osc, t: 0, base: big ? 90 : 160 };
+}
+function updateSaucerSound() {
+  if (!saucerSound) return;
+  saucerSound.t++;
+  const high = Math.floor(saucerSound.t / 9) % 2 === 0;
+  saucerSound.osc.frequency.value = saucerSound.base * (high ? 1.18 : 1);
+}
+function stopSaucerSound() {
+  if (!saucerSound) return;
+  saucerSound.osc.stop(); saucerSound.osc.disconnect(); saucerSound = null;
+}
+
+// Heartbeat — louder now, and routed through its own volume bus.
+let beatTimer = 0, beatHigh = false;
+function updateHeartbeat() {
+  beatTimer--;
+  if (beatTimer <= 0) {
+    tone(beatHigh ? 70 : 55, 0.14, "sine", 0.5, 0, heartGain);
+    beatHigh = !beatHigh;
+    const frac = game.asteroids.length / Math.max(1, game.waveCount);
+    let interval = 20 + frac * 32;
+    interval -= (game.level - 1) * 1.5;
+    beatTimer = Math.max(15, interval);
+  }
+}
+
+// --- Keyboard ---
+const keys = {};
+document.addEventListener("keydown", e => {
+  if (e.target && e.target.tagName === "INPUT") return; // typing initials
+  initAudio();
+  keys[e.code] = true;
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  if (e.code === "Enter") {
+    if (game.state === "menu") startFromMenu();
+    else if (game.state === "over") playAgain();
+  }
+  if (e.code === "ArrowDown" && !e.repeat) hyperspace();  // tap (ignore key-repeat)
+  if (e.code === "KeyM") toggleMute();
+  if (e.code === "KeyP" || e.code === "Escape") togglePause();
+});
+document.addEventListener("keyup", e => { keys[e.code] = false; });
+
+// --- Entities ---
+function makeShip() {
+  return { x: W/2, y: H/2, angle: -Math.PI/2, vx: 0, vy: 0,
+           radius: 12, thrusting: false, invincible: 90, teleCooldown: 0, dead: false };
+}
+
+// Arcade-style pauses (at ~60fps): a beat after dying before the new ship
+// appears, and a breather between waves before the next one spawns.
+const RESPAWN_DELAY = 60;   // ~1 second
+const WAVE_DELAY = 120;     // ~2 seconds
+function makeAsteroid(x, y, size) {
+  const lvl = game.level || 1;
+  const speed = rand(0.4, 1.2) * (4 - size) * (1 + (lvl - 1) * 0.07) * settings.asteroidSpeed;
+  const dir = rand(0, Math.PI * 2);
+  const points = [];
+  for (let i = 0; i < 10; i++) points.push(rand(0.7, 1.3));
+  return { x, y, size, radius: size * 14,
+           vx: Math.cos(dir) * speed, vy: Math.sin(dir) * speed,
+           angle: 0, spin: rand(-0.03, 0.03), points, teleCooldown: 0 };
+}
+function makeSaucer() {
+  const fromLeft = Math.random() < 0.5;
+  const big = Math.random() < 0.5;
+  const lvl = game.level || 1;
+  return { x: fromLeft ? 0 : W, y: rand(60, H - 60),
+           vx: (fromLeft ? 1 : -1) * (big ? 1.3 : 1.8), vy: 0,
+           radius: big ? 20 : 13, big,
+           fireRate: Math.max(35, (big ? 70 : 90) - lvl * 3),
+           fireTimer: 60, wobbleTimer: rand(40, 90), teleCooldown: 0 };
+}
+function spawnExplosion(x, y, count, color = "#fff", spread = 3) {
+  for (let i = 0; i < count; i++) {
+    const dir = rand(0, Math.PI * 2), speed = rand(0.5, spread);
+    game.particles.push({ x, y, vx: Math.cos(dir)*speed, vy: Math.sin(dir)*speed,
+                          life: rand(20, 45), maxLife: 45, color });
+  }
+}
+
+// --- Leaderboards: a separate top-5 for each physics configuration ---
+// The three toggles give 8 combinations; each keeps its own board.
+const CONFIGS = [
+  { code: "000", label: "ORIGINAL" },
+  { code: "100", label: "COLLISIONS" },
+  { code: "010", label: "WORMHOLES" },
+  { code: "001", label: "BLACK HOLE" },
+  { code: "110", label: "COLLISIONS + WORMHOLES" },
+  { code: "101", label: "COLLISIONS + BLACK HOLE" },
+  { code: "011", label: "WORMHOLES + BLACK HOLE" },
+  { code: "111", label: "ALL THREE" },
+];
+// A configuration's code is just its three toggles as a 3-digit string.
+function configCode(s) {
+  return (s.collisions ? "1" : "0") + (s.wormholes ? "1" : "0") + (s.blackhole ? "1" : "0");
+}
+function loadAllScores() {
+  try { return JSON.parse(localStorage.getItem("asteroidsScoresV2")) || {}; }
+  catch (e) { return {}; }
+}
+function saveAllScores() { localStorage.setItem("asteroidsScoresV2", JSON.stringify(game.allScores)); }
+
+// Optional shared leaderboard (Cloudflare Worker + D1). When the API is set and
+// reachable, scores are global across all players; otherwise the game falls back
+// to the per-browser boards above. CORS limits the API to the hosted page, so
+// local file:// play silently stays on local scores.
+const LEADERBOARD_API = "https://arcade-api.dave-zoellner-us.workers.dev";
+const REMOTE_BOARD = LEADERBOARD_API.length > 0;
+async function fetchRemoteBoards() {
+  if (!REMOTE_BOARD) return;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY));
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data && typeof data === "object") {
+      game.allScores = data;
+      saveAllScores();     // cache for offline / instant next load
+      renderCarousel();
+    }
+  } catch (e) { /* offline — keep the local board */ }
+}
+async function submitRemoteScore(code, initials, score) {
+  if (!REMOTE_BOARD) return false;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: code, initials, score }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+function boardFor(code) {
+  if (!game.allScores[code]) game.allScores[code] = [];
+  return game.allScores[code];
+}
+function qualifies(score) {
+  if (score <= 0) return false;
+  const b = boardFor(configCode(settings));
+  if (b.length < 5) return true;
+  return score > b[b.length - 1].score;   // beats the lowest on THIS config
+}
+function addHighScoreLocal(code, initials, score) {
+  const b = boardFor(code);
+  b.push({ initials, score });
+  b.sort((a, b) => b.score - a.score);
+  game.allScores[code] = b.slice(0, 5);
+  saveAllScores();
+}
+
+// The leaderboard display is a carousel: it shows one configuration's top 5,
+// auto-advances every 3 seconds, and has left/right arrows for manual control.
+let carouselIndex = 0, carouselTimer = null;
+function renderCarousel() {
+  const cfg = CONFIGS[carouselIndex];
+  const list = game.allScores[cfg.code] || [];
+  let html = '<div class="board-nav">' +
+    '<button class="arrow" onclick="carouselPrev()">&#9664;</button>' +
+    '<span class="board-title">' + cfg.label + '</span>' +
+    '<button class="arrow" onclick="carouselNext()">&#9654;</button></div>';
+  for (let i = 0; i < 5; i++) {
+    const e = list[i];
+    if (e) html += '<div class="board-row"><span>' + (i+1) + '. ' + e.initials + '</span><span>' + e.score + '</span></div>';
+    else   html += '<div class="board-row dim"><span>' + (i+1) + '. ---</span><span>0</span></div>';
+  }
+  if (menuBoard) menuBoard.innerHTML = html;
+  if (overBoard) overBoard.innerHTML = html;
+}
+function carouselNext() { carouselIndex = (carouselIndex + 1) % CONFIGS.length; renderCarousel(); armCarousel(); }
+function carouselPrev() { carouselIndex = (carouselIndex - 1 + CONFIGS.length) % CONFIGS.length; renderCarousel(); armCarousel(); }
+function armCarousel() {            // (re)start the 3-second auto-advance timer
+  if (carouselTimer) clearTimeout(carouselTimer);
+  carouselTimer = setTimeout(carouselNext, 3000);
+}
+function startCarousel() { renderCarousel(); armCarousel(); }
+function stopCarousel() { if (carouselTimer) { clearTimeout(carouselTimer); carouselTimer = null; } }
+
+// --- Game state ---
+const game = {
+  state: "menu",
+  ship: makeShip(),
+  asteroids: [], bullets: [], particles: [], wormholes: [], blackhole: null,
+  saucer: null, saucerTimer: 600, waveCount: 4,
+  score: 0, lives: 3, level: 1, fireCooldown: 0, nextLife: 10000, frame: 0,
+  respawnTimer: 0, waveTimer: 0,
+  allScores: loadAllScores(),
+};
+
+// Lose a life: blow up the ship, then either end the game or schedule a
+// delayed respawn (the ship reappears after RESPAWN_DELAY frames).
+function loseLife() {
+  const s = game.ship;
+  spawnExplosion(s.x, s.y, 30, "#fff", 4);
+  noiseBurst(0.5, 0.5, 700);
+  game.lives--;
+  if (game.lives <= 0) endGame();
+  else { s.dead = true; game.respawnTimer = RESPAWN_DELAY; }
+}
+
+// Each physics feature is an independent toggle now.
+function collisionsActive() { return settings.collisions; }
+function wormholesActive() { return settings.wormholes; }
+function blackholeActive() { return settings.blackhole; }
+
+function spawnWormholes() {
+  game.wormholes = [];
+  if (!wormholesActive()) return;
+  let a, b, tries = 0;
+  do {
+    a = { x: rand(120, W-120), y: rand(120, H-120), radius: 26 };
+    b = { x: rand(120, W-120), y: rand(120, H-120), radius: 26 };
+    tries++;
+  } while (Math.hypot(a.x-b.x, a.y-b.y) < 250 && tries < 30);
+  game.wormholes = [a, b];
+}
+
+function spawnBlackHole() {
+  game.blackhole = null;
+  if (!blackholeActive()) return;
+  // Place it away from center, where the ship spawns, so you don't start in it.
+  let x, y, tries = 0;
+  do { x = rand(120, W-120); y = rand(120, H-120); tries++; }
+  while (Math.hypot(x - W/2, y - H/2) < 180 && tries < 40);
+  game.blackhole = { x, y, radius: 20, G: settings.blackholeStrength };
+}
+
+function spawnWave(count) {
+  game.waveCount = count;
+  game.asteroids = [];
+  for (let i = 0; i < count; i++) {
+    let x, y;
+    do { x = rand(0, W); y = rand(0, H); }
+    while (Math.hypot(x - game.ship.x, y - game.ship.y) < 150);
+    game.asteroids.push(makeAsteroid(x, y, 3));
+  }
+  spawnWormholes();
+  spawnBlackHole();
+}
+
+function startGame() {
+  game.state = "playing";
+  game.score = 0;
+  game.lives = settings.lives;
+  game.level = 1;
+  game.nextLife = 10000;
+  game.respawnTimer = 0; game.waveTimer = 0;
+  game.bullets = []; game.particles = [];
+  game.saucer = null; stopSaucerSound();
+  game.saucerTimer = rand(500, 900) / settings.saucerFreq;
+  game.ship = makeShip();
+  spawnWave(settings.asteroidCount);
+}
+function startFromMenu() { stopCarousel(); menuEl.style.display = "none"; overEl.style.display = "none"; pauseEl.style.display = "none"; initAudio(); startGame(); }
+function playAgain() { stopCarousel(); overEl.style.display = "none"; pauseEl.style.display = "none"; startGame(); }
+function goMenu() {
+  game.state = "menu";
+  stopThrustSound(); stopSaucerSound();
+  overEl.style.display = "none";
+  pauseEl.style.display = "none";
+  menuEl.style.display = "flex";
+  startCarousel();
+}
+
+// Pause only makes sense mid-game; it freezes everything and silences
+// the looping sounds until you resume.
+function togglePause() {
+  if (game.state === "playing") {
+    game.state = "paused";
+    stopThrustSound(); stopSaucerSound();
+    pauseEl.style.display = "flex";
+  } else if (game.state === "paused") {
+    resumeGame();
+  }
+}
+function resumeGame() {
+  if (game.state !== "paused") return;
+  game.state = "playing";
+  pauseEl.style.display = "none";
+  if (game.saucer) startSaucerSound(game.saucer.big); // restart the siren
+}
+
+async function endGame() {
+  game.state = "over";
+  stopThrustSound(); stopSaucerSound();
+  noiseBurst(0.6, 0.5, 600);
+  await fetchRemoteBoards();   // judge "did I make the top 5?" against shared scores
+  document.getElementById("overScore").textContent = "SCORE " + game.score;
+  const entry = document.getElementById("initialsEntry");
+  if (qualifies(game.score)) {
+    entry.style.display = "flex";
+    initialsInput.value = "";
+    setTimeout(() => initialsInput.focus(), 60);  // let the overlay appear first
+  } else {
+    entry.style.display = "none";
+  }
+  // Start the board carousel on the configuration that was just played.
+  carouselIndex = Math.max(0, CONFIGS.findIndex(c => c.code === configCode(settings)));
+  startCarousel();
+  overEl.style.display = "flex";
+}
+
+function hyperspace() {
+  if (game.state !== "playing" || game.ship.dead) return;
+  const ship = game.ship;
+  spawnExplosion(ship.x, ship.y, 10, "#88f", 3);
+  playWarp();
+  ship.x = rand(40, W - 40); ship.y = rand(40, H - 40);
+  ship.vx = 0; ship.vy = 0;
+  if (Math.random() < 0.12) loseLife();   // malfunction: explode at the new spot
+  else ship.invincible = 30;
+}
+
+function addScore(points) {
+  game.score += points;
+  if (game.score >= game.nextLife) {
+    game.lives++; game.nextLife += 10000; playExtraLife();
+  }
+}
+
+// --- Physics mode: elastic asteroid-on-asteroid collisions ---
+function resolveAsteroidCollisions() {
+  const list = game.asteroids;
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      const minDist = a.radius + b.radius;
+      if (dist > 0 && dist < minDist) {
+        const nx = dx / dist, ny = dy / dist;
+        const overlap = (minDist - dist) / 2;     // push them apart
+        a.x -= nx * overlap; a.y -= ny * overlap;
+        b.x += nx * overlap; b.y += ny * overlap;
+        const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (vn < 0) {                              // only if approaching
+          const ma = a.size, mb = b.size;          // bigger rock = heavier
+          const j2 = -(2 * vn) / (1/ma + 1/mb);
+          a.vx -= (j2 / ma) * nx; a.vy -= (j2 / ma) * ny;
+          b.vx += (j2 / mb) * nx; b.vy += (j2 / mb) * ny;
+        }
+      }
+    }
+  }
+}
+
+// --- Physics mode: wormholes that teleport whatever drifts in ---
+function applyWormholes(objects) {
+  if (game.wormholes.length < 2) return;
+  for (const o of objects) {
+    if (!o) continue;
+    if (o.teleCooldown > 0) { o.teleCooldown--; continue; }
+    for (let k = 0; k < 2; k++) {
+      const src = game.wormholes[k], dst = game.wormholes[1 - k];
+      if (Math.hypot(o.x - src.x, o.y - src.y) < src.radius) {
+        const speed = Math.hypot(o.vx || 0, o.vy || 0) || 1;
+        const ux = (o.vx || 0) / speed, uy = (o.vy || 0) / speed;
+        o.x = dst.x + ux * (dst.radius + 10);
+        o.y = dst.y + uy * (dst.radius + 10);
+        o.teleCooldown = 20;
+        // The ship arrives with a brief shield so it can't die on a rock
+        // that happens to be drifting through the exit portal.
+        if ("invincible" in o) o.invincible = Math.max(o.invincible, 45);
+        tone(660, 0.05, "sine", 0.05);
+        break;
+      }
+    }
+  }
+}
+
+// --- Physics mode: a black hole whose gravity reaches the whole screen ---
+// Pulls one object toward the hole; the nudge weakens with distance squared,
+// so it's gentle far away and fierce up close. Returns true if the object
+// crossed the event horizon and should be consumed (deleted).
+function blackHolePull(o) {
+  const bh = game.blackhole;
+  const dx = bh.x - o.x, dy = bh.y - o.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < bh.radius) return true;          // sucked in
+  const force = bh.G / (dist * dist + 500);   // +500 keeps it from blowing up
+  o.vx += (dx / dist) * force;
+  o.vy += (dy / dist) * force;
+  return false;
+}
+
+// =====================================================================
+//  UPDATE
+// =====================================================================
+function update() {
+  game.frame++;
+  for (const p of game.particles) { p.x += p.vx; p.y += p.vy; p.life--; }
+  game.particles = game.particles.filter(p => p.life > 0);
+
+  if (game.state !== "playing") { stopThrustSound(); stopSaucerSound(); return; }
+  const ship = game.ship;
+
+  updateHeartbeat();
+
+  if (ship.dead) {
+    // Ship destroyed: wait out the delay, then bring in the next one.
+    stopThrustSound();
+    game.respawnTimer--;
+    if (game.respawnTimer <= 0) game.ship = makeShip();
+  } else {
+    if (keys["ArrowLeft"])  ship.angle -= 0.06;
+    if (keys["ArrowRight"]) ship.angle += 0.06;
+
+    ship.thrusting = !!keys["ArrowUp"];
+    if (ship.thrusting) {
+      ship.vx += Math.cos(ship.angle) * 0.12;
+      ship.vy += Math.sin(ship.angle) * 0.12;
+      startThrustSound();
+      spawnExplosion(ship.x - Math.cos(ship.angle)*ship.radius,
+                     ship.y - Math.sin(ship.angle)*ship.radius, 1, "#f80", 1.5);
+    } else stopThrustSound();
+    ship.vx *= 0.99; ship.vy *= 0.99;
+    ship.x += ship.vx; ship.y += ship.vy;
+    wrap(ship);
+    if (ship.invincible > 0) ship.invincible--;
+
+    if (game.fireCooldown > 0) game.fireCooldown--;
+    if (keys["Space"] && game.fireCooldown === 0) {
+      game.bullets.push({
+        x: ship.x + Math.cos(ship.angle)*ship.radius,
+        y: ship.y + Math.sin(ship.angle)*ship.radius,
+        vx: Math.cos(ship.angle)*7 + ship.vx, vy: Math.sin(ship.angle)*7 + ship.vy,
+        life: 60, enemy: false, teleCooldown: 0,
+      });
+      game.fireCooldown = 10; playFire();
+    }
+  }
+
+  for (const b of game.bullets) { b.x += b.vx; b.y += b.vy; b.life--; wrap(b); }
+  game.bullets = game.bullets.filter(b => b.life > 0);
+
+  for (const a of game.asteroids) { a.x += a.vx; a.y += a.vy; a.angle += a.spin; wrap(a); }
+
+  // Apply the selected physics mode (hybrid runs both).
+  if (collisionsActive()) resolveAsteroidCollisions();
+  if (wormholesActive()) {
+    applyWormholes(game.asteroids);
+    applyWormholes(game.bullets);
+    if (!ship.dead) applyWormholes([ship]);
+    if (game.saucer) applyWormholes([game.saucer]);
+  }
+  if (blackholeActive() && game.blackhole) {
+    // Rocks: pulled in, then swallowed (no split — they're just gone).
+    for (let i = game.asteroids.length - 1; i >= 0; i--) {
+      const a = game.asteroids[i];
+      if (blackHolePull(a)) {
+        spawnExplosion(a.x, a.y, 8, "#a0f", 2);
+        tone(150, 0.15, "sine", 0.1);
+        game.asteroids.splice(i, 1);
+      }
+    }
+    // Bullets: pulled and swallowed too.
+    for (let i = game.bullets.length - 1; i >= 0; i--) {
+      if (blackHolePull(game.bullets[i])) game.bullets.splice(i, 1);
+    }
+    // Saucer: pulled in and destroyed.
+    if (game.saucer && blackHolePull(game.saucer)) {
+      spawnExplosion(game.saucer.x, game.saucer.y, 20, "#0ff", 3);
+      tone(150, 0.2, "sine", 0.12);
+      game.saucer = null; stopSaucerSound();
+    }
+    // Ship: pulled every frame; dies if it crosses the horizon unshielded.
+    if (!ship.dead && blackHolePull(ship) && ship.invincible === 0) loseLife();
+  }
+
+  // Saucer
+  if (!game.saucer) {
+    game.saucerTimer--;
+    if (game.saucerTimer <= 0) {
+      game.saucer = makeSaucer();
+      startSaucerSound(game.saucer.big);
+      game.saucerTimer = Math.max(250, rand(700, 1400) - game.level*40) / settings.saucerFreq;
+    }
+  } else {
+    const s = game.saucer;
+    s.x += s.vx; s.y += s.vy;
+    if (s.y < 0) s.y += H; if (s.y > H) s.y -= H;
+    s.wobbleTimer--;
+    if (s.wobbleTimer <= 0) { s.vy = rand(-1, 1); s.wobbleTimer = rand(40, 90); }
+    if (s.x < -30 || s.x > W + 30) { game.saucer = null; stopSaucerSound(); }
+    else {
+      updateSaucerSound();
+      s.fireTimer--;
+      if (s.fireTimer <= 0) {
+        let ang = s.big ? rand(0, Math.PI*2)
+                        : Math.atan2(ship.y - s.y, ship.x - s.x) + rand(-0.15, 0.15);
+        game.bullets.push({ x: s.x, y: s.y, vx: Math.cos(ang)*4, vy: Math.sin(ang)*4,
+                            life: 100, enemy: true, teleCooldown: 0 });
+        s.fireTimer = s.fireRate;
+        tone(330, 0.1, "sawtooth", 0.1);
+      }
+    }
+  }
+
+  // Player bullets vs asteroids
+  for (let i = game.asteroids.length - 1; i >= 0; i--) {
+    const a = game.asteroids[i];
+    for (let j = game.bullets.length - 1; j >= 0; j--) {
+      const b = game.bullets[j];
+      if (b.enemy) continue;
+      if (Math.hypot(a.x - b.x, a.y - b.y) < a.radius) {
+        game.bullets.splice(j, 1);
+        addScore((4 - a.size) * 20);
+        spawnExplosion(a.x, a.y, 12 + a.size*4, "#fff");
+        noiseBurst(0.2 + a.size*0.05, 0.3, 800 + a.size*200);
+        if (a.size > 1) {
+          game.asteroids.push(makeAsteroid(a.x, a.y, a.size - 1));
+          game.asteroids.push(makeAsteroid(a.x, a.y, a.size - 1));
+        }
+        game.asteroids.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // Player bullets vs saucer
+  if (game.saucer) {
+    const s = game.saucer;
+    for (let j = game.bullets.length - 1; j >= 0; j--) {
+      const b = game.bullets[j];
+      if (b.enemy) continue;
+      if (Math.hypot(s.x - b.x, s.y - b.y) < s.radius) {
+        game.bullets.splice(j, 1);
+        addScore(s.big ? 200 : 1000);
+        spawnExplosion(s.x, s.y, 25, "#0ff", 4);
+        noiseBurst(0.4, 0.5, 700);
+        game.saucer = null; stopSaucerSound();
+        break;
+      }
+    }
+  }
+
+  // Saucer vs asteroids — like the original, the saucer is destroyed if it
+  // flies into a rock. The rock shatters too, but you score nothing for it.
+  if (game.saucer) {
+    const s = game.saucer;
+    for (let i = game.asteroids.length - 1; i >= 0; i--) {
+      const a = game.asteroids[i];
+      if (Math.hypot(s.x - a.x, s.y - a.y) < s.radius + a.radius) {
+        spawnExplosion(s.x, s.y, 25, "#0ff", 4);
+        spawnExplosion(a.x, a.y, 12 + a.size * 4, "#fff");
+        noiseBurst(0.4, 0.5, 700);
+        game.saucer = null; stopSaucerSound();
+        if (a.size > 1) {
+          game.asteroids.push(makeAsteroid(a.x, a.y, a.size - 1));
+          game.asteroids.push(makeAsteroid(a.x, a.y, a.size - 1));
+        }
+        game.asteroids.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // Things that can kill the ship
+  if (!ship.dead && ship.invincible === 0) {
+    let hit = false;
+    for (const a of game.asteroids)
+      if (Math.hypot(a.x - ship.x, a.y - ship.y) < a.radius + ship.radius) { hit = true; break; }
+    if (!hit && game.saucer &&
+        Math.hypot(game.saucer.x - ship.x, game.saucer.y - ship.y) < game.saucer.radius + ship.radius) hit = true;
+    if (!hit)
+      for (let j = game.bullets.length - 1; j >= 0; j--) {
+        const b = game.bullets[j];
+        if (b.enemy && Math.hypot(b.x - ship.x, b.y - ship.y) < ship.radius) { game.bullets.splice(j,1); hit = true; break; }
+      }
+    if (hit) loseLife();
+  }
+
+  // Wave cleared: wait WAVE_DELAY frames (a breather) before the next wave.
+  if (game.asteroids.length === 0) {
+    if (game.waveTimer <= 0) game.waveTimer = WAVE_DELAY;
+  }
+  if (game.waveTimer > 0) {
+    game.waveTimer--;
+    if (game.waveTimer <= 0 && game.asteroids.length === 0) {
+      game.level++;
+      spawnWave(3 + game.level);
+    }
+  }
+}
+
+// =====================================================================
+//  DRAW
+// =====================================================================
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  for (const p of game.particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+
+  if (game.state === "menu") return; // HTML menu overlay does the rest
+
+  // Wormholes (drawn under everything else)
+  for (const w of game.wormholes) {
+    ctx.save();
+    ctx.translate(w.x, w.y);
+    ctx.rotate(game.frame * 0.05);
+    ctx.strokeStyle = "#b0f"; ctx.lineWidth = 2;
+    for (let r = w.radius; r > 4; r -= 6) {
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 1.5);
+      ctx.stroke();
+      ctx.rotate(0.5);
+    }
+    ctx.restore();
+  }
+
+  // Black hole: a faint gravity glow, a rotating accretion ring, a dark core.
+  if (game.blackhole) {
+    const bh = game.blackhole;
+    ctx.save();
+    ctx.translate(bh.x, bh.y);
+    const grad = ctx.createRadialGradient(0, 0, bh.radius, 0, 0, bh.radius * 6);
+    grad.addColorStop(0, "rgba(150,0,255,0.35)");
+    grad.addColorStop(1, "rgba(150,0,255,0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0, 0, bh.radius * 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, bh.radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#000"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#a0f"; ctx.stroke();
+    ctx.rotate(game.frame * 0.08);
+    ctx.strokeStyle = "#0ff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, bh.radius + 5, 0.2, Math.PI * 1.4); ctx.stroke();
+    ctx.restore();
+  }
+
+  const ship = game.ship;
+  if ((game.state === "playing" || game.state === "paused") && !ship.dead &&
+      !(ship.invincible > 0 && Math.floor(ship.invincible / 5) % 2)) {
+    ctx.save();
+    ctx.translate(ship.x, ship.y); ctx.rotate(ship.angle);
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ship.radius, 0);
+    ctx.lineTo(-ship.radius, ship.radius * 0.7);
+    ctx.lineTo(-ship.radius * 0.5, 0);
+    ctx.lineTo(-ship.radius, -ship.radius * 0.7);
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+  for (const a of game.asteroids) {
+    ctx.save();
+    ctx.translate(a.x, a.y); ctx.rotate(a.angle);
+    ctx.beginPath();
+    for (let i = 0; i < a.points.length; i++) {
+      const ang = (i / a.points.length) * Math.PI * 2;
+      const r = a.radius * a.points[i];
+      const px = Math.cos(ang)*r, py = Math.sin(ang)*r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  }
+
+  if (game.saucer) {
+    const s = game.saucer;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-s.radius, 0); ctx.lineTo(s.radius, 0);
+    ctx.lineTo(s.radius*0.5, s.radius*0.5); ctx.lineTo(-s.radius*0.5, s.radius*0.5);
+    ctx.closePath();
+    ctx.moveTo(-s.radius*0.5, 0);
+    ctx.lineTo(-s.radius*0.25, -s.radius*0.5);
+    ctx.lineTo(s.radius*0.25, -s.radius*0.5);
+    ctx.lineTo(s.radius*0.5, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  for (const b of game.bullets) {
+    ctx.fillStyle = b.enemy ? "#f33" : "#fff";
+    ctx.beginPath(); ctx.arc(b.x, b.y, 2.5, 0, Math.PI*2); ctx.fill();
+  }
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "20px 'Courier New', monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("SCORE " + game.score, 20, 30);
+  ctx.fillText("LIVES " + game.lives, 20, 55);
+  ctx.textAlign = "right";
+  ctx.fillText("LEVEL " + game.level, W - 20, 30);
+  const _hb = game.allScores[configCode(settings)];
+  ctx.fillText("HI " + (_hb && _hb[0] ? _hb[0].score : 0), W - 20, 55);
+}
+
+// =====================================================================
+//  MENU WIRING  —  connect the HTML controls to the settings object.
+// =====================================================================
+const menuEl = document.getElementById("menu");
+const overEl = document.getElementById("overMenu");
+const pauseEl = document.getElementById("pauseMenu");
+const menuBoard = document.getElementById("menuBoard");
+const overBoard = document.getElementById("overBoard");
+const initialsInput = document.getElementById("initialsInput");
+
+// Save the player's initials onto the leaderboard.
+async function submitInitials() {
+  let v = (initialsInput.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+  if (!v) v = "AAA";
+  const code = configCode(settings);
+  addHighScoreLocal(code, v, game.score);   // optimistic local update
+  document.getElementById("initialsEntry").style.display = "none";
+  renderCarousel();
+  if (await submitRemoteScore(code, v, game.score)) {
+    await fetchRemoteBoards();               // pull the merged shared board
+  }
+}
+initialsInput.addEventListener("input", () => {
+  initialsInput.value = initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+});
+initialsInput.addEventListener("keydown", e => {
+  e.stopPropagation();                       // don't trigger game shortcuts
+  if (e.code === "Enter") { e.preventDefault(); submitInitials(); }
+});
+document.getElementById("saveInitialsBtn").onclick = submitInitials;
+
+const sSpeed = document.getElementById("sSpeed");
+const sCount = document.getElementById("sCount");
+const sSaucer = document.getElementById("sSaucer");
+const sLives = document.getElementById("sLives");
+const sHeart = document.getElementById("sHeart");
+const sFx = document.getElementById("sFx");
+const chkCollide = document.getElementById("chkCollide");
+const chkWormhole = document.getElementById("chkWormhole");
+const chkBlackhole = document.getElementById("chkBlackhole");
+const sGravity = document.getElementById("sGravity");
+
+function syncMenuUI() {
+  sSpeed.value = settings.asteroidSpeed;
+  sCount.value = settings.asteroidCount;
+  sSaucer.value = settings.saucerFreq;
+  sLives.value = settings.lives;
+  sHeart.value = settings.heartVolume;
+  sFx.value = settings.fxVolume;
+  document.getElementById("vSpeed").textContent = settings.asteroidSpeed.toFixed(1) + "x";
+  document.getElementById("vCount").textContent = settings.asteroidCount;
+  document.getElementById("vSaucer").textContent = settings.saucerFreq.toFixed(1) + "x";
+  document.getElementById("vLives").textContent = settings.lives;
+  document.getElementById("vHeart").textContent = Math.round(settings.heartVolume / 2.5 * 100) + "%";
+  document.getElementById("vFx").textContent = Math.round(settings.fxVolume / 1.5 * 100) + "%";
+
+  chkCollide.checked = settings.collisions;
+  chkWormhole.checked = settings.wormholes;
+  chkBlackhole.checked = settings.blackhole;
+  sGravity.value = settings.blackholeStrength;
+  document.getElementById("vGravity").textContent =
+    settings.blackholeStrength === 0 ? "OFF" : Math.round(settings.blackholeStrength / 2600 * 100) + "%";
+  // The gravity slider only matters when the black hole is enabled.
+  sGravity.disabled = !settings.blackhole;
+  document.getElementById("gravityRow").classList.toggle("disabled", !settings.blackhole);
+}
+
+// Sliders update settings live.
+sSpeed.oninput = () => { settings.asteroidSpeed = parseFloat(sSpeed.value); markCustom(); syncMenuUI(); };
+sCount.oninput = () => { settings.asteroidCount = parseInt(sCount.value); markCustom(); syncMenuUI(); };
+sSaucer.oninput = () => { settings.saucerFreq = parseFloat(sSaucer.value); markCustom(); syncMenuUI(); };
+sLives.oninput = () => { settings.lives = parseInt(sLives.value); markCustom(); syncMenuUI(); };
+sHeart.oninput = () => { settings.heartVolume = parseFloat(sHeart.value); applyVolumes(); initAudio(); syncMenuUI(); };
+sFx.oninput = () => { settings.fxVolume = parseFloat(sFx.value); applyVolumes(); initAudio(); syncMenuUI(); };
+
+// Difficulty presets.
+const PRESETS = {
+  easy:   { asteroidSpeed: 0.7, asteroidCount: 3, saucerFreq: 0.6, lives: 5 },
+  normal: { asteroidSpeed: 1.0, asteroidCount: 4, saucerFreq: 1.0, lives: 3 },
+  hard:   { asteroidSpeed: 1.5, asteroidCount: 6, saucerFreq: 1.6, lives: 2 },
+};
+function selectPreset(name) {
+  Object.assign(settings, PRESETS[name]);
+  document.querySelectorAll("#presets button").forEach(b =>
+    b.classList.toggle("sel", b.dataset.preset === name));
+  syncMenuUI();
+}
+function markCustom() {
+  // Hand-tweaking a slider deselects the preset buttons.
+  document.querySelectorAll("#presets button").forEach(b => b.classList.remove("sel"));
+}
+document.querySelectorAll("#presets button").forEach(b =>
+  b.onclick = () => selectPreset(b.dataset.preset));
+
+// Physics checkboxes — each toggles its feature independently.
+chkCollide.onchange = () => { settings.collisions = chkCollide.checked; syncMenuUI(); };
+chkWormhole.onchange = () => { settings.wormholes = chkWormhole.checked; syncMenuUI(); };
+chkBlackhole.onchange = () => { settings.blackhole = chkBlackhole.checked; syncMenuUI(); };
+
+// Black hole gravity strength (0 = none, up to the strong original pull).
+sGravity.oninput = () => {
+  settings.blackholeStrength = parseInt(sGravity.value);
+  if (game.blackhole) game.blackhole.G = settings.blackholeStrength;
+  syncMenuUI();
+};
+
+document.getElementById("startBtn").onclick = startFromMenu;
+document.getElementById("againBtn").onclick = playAgain;
+document.getElementById("menuBtn").onclick = goMenu;
+document.getElementById("resumeBtn").onclick = resumeGame;
+document.getElementById("pauseMenuBtn").onclick = goMenu;
+
+// --- Touch controls ---
+function bindButton(id, code) {
+  const el = document.getElementById(id);
+  const down = e => {
+    e.preventDefault(); initAudio();
+    if (code === "hyper") { hyperspace(); return; }
+    if (code === "pause") { togglePause(); return; }
+    keys[code] = true;
+  };
+  const up = e => { e.preventDefault(); if (code !== "hyper" && code !== "pause") keys[code] = false; };
+  el.addEventListener("touchstart", down, { passive: false });
+  el.addEventListener("touchend", up, { passive: false });
+  el.addEventListener("touchcancel", up, { passive: false });
+  el.addEventListener("mousedown", down);
+  el.addEventListener("mouseup", up);
+  el.addEventListener("mouseleave", up);
+}
+bindButton("btnLeft", "ArrowLeft");
+bindButton("btnRight", "ArrowRight");
+bindButton("btnThrust", "ArrowUp");
+bindButton("btnFire", "Space");
+bindButton("btnHyper", "hyper");
+bindButton("btnPause", "pause");
+if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
+  document.getElementById("touch").style.display = "flex";
+}
+
+// =====================================================================
+//  BOOT
+// =====================================================================
+selectPreset("normal");   // sensible defaults + fills the controls
+goMenu();
+fetchRemoteBoards();      // sync the shared leaderboard if the API is reachable
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>

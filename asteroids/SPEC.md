@@ -1,7 +1,7 @@
 # Dave Z's Asteroids on Steroids — Master Spec
 
 The single source of truth for what this game is and how it's built. Pairs with
-[CHANGELOG.md](CHANGELOG.md) (history) and [README.md](README.md) (quick start).
+the arcade [CHANGELOG.md](../CHANGELOG.md) (history) and [README.md](../README.md) (quick start).
 
 ---
 
@@ -13,8 +13,9 @@ cloud board), authentic synthesized arcade sound, and a full start menu. Runs in
 any modern browser with no build step. Hosted on GitHub Pages, with an optional
 Cloudflare D1 backend for global high scores.
 
-- **Live (key-gated):** https://chateaufuente.github.io/asteroids-arcade/?key=arcade-3f9k2x7q
-- **Repo:** https://github.com/ChateauFuente/asteroids-arcade
+- **Live (key-gated):** https://chateaufuente.github.io/asteroids-arcade/asteroids/index.html?key=arcade-3f9k2x7q
+  (reached from the arcade menu at the repo root, which passes the key through)
+- **Repo:** https://github.com/ChateauFuente/asteroids-arcade — this game lives in `asteroids/`
 
 ---
 
@@ -134,17 +135,21 @@ volume sliders.
 
 ## 10. Architecture & files
 
+Repo is an arcade hosting multiple games; this game lives in `asteroids/`:
+
 ```
-index.html      Entire game (HTML + CSS + JS). Served by GitHub Pages at root.
-robots.txt      Disallow all crawlers.
-SPEC.md         This document.
-CHANGELOG.md    Version history.
-README.md       Quick start.
-api/            Cloudflare backend (deployed separately from the page):
-  wrangler.toml   Worker config + D1 binding (binding DB → arcade_leaderboard).
-  schema.sql      scores(id, config, initials, score, created_at) + index.
-  src/index.js    Worker API: GET /scores[?config=], POST /scores; CORS; key gate.
-  README.md       Backend deploy guide.
+index.html            Arcade menu (lists games, passes the key through).
+asteroids/index.html  Entire game (HTML + CSS + JS). This game.
+asteroids/SPEC.md     This document.
+stunt-cycle/…         The other game.
+robots.txt            Disallow all crawlers.
+CHANGELOG.md          Unified history for the whole arcade.
+README.md             Quick start.
+api/                  Cloudflare backend (shared, deployed separately):
+  wrangler.toml         Worker config + D1 binding (binding DB → arcade_leaderboard).
+  schema.sql            scores(id, config, initials, score, created_at) + index.
+  src/index.js          Worker API: GET /scores[?config=], POST /scores; CORS; key gate.
+  README.md             Backend deploy guide.
 ```
 
 **Hosting:** front-end = GitHub Pages (`ChateauFuente/asteroids-arcade`).
@@ -156,8 +161,8 @@ in account dave.zoellner.us@gmail.com. Fully isolated from other projects.
 
 ## 11. Update procedures
 
-- **Game change:** edit `index.html` → `git add -A && git commit && git push`.
-  GitHub Pages redeploys automatically (~1 min).
+- **Game change:** edit `asteroids/index.html` → `git add -A && git commit && git
+  push`. GitHub Pages redeploys automatically (~1 min).
 - **API change:** edit `api/**` → `cd api && npx wrangler@latest deploy`.
 - **Inspect scores:** `cd api && npx wrangler@latest d1 execute arcade_leaderboard
   --command "SELECT * FROM scores ORDER BY score DESC;" --remote`.
