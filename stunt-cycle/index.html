@@ -379,7 +379,9 @@ function update() {
         }
       } else if (low >= GY) { crash(); return; }  // overshot past the ramp end
     }
-    if (b.x > W + 40) crash();
+    // Truly flew off the end — relative to the (possibly off-screen) ramp, NOT the
+    // fixed screen width, so a long bus row doesn't put an invisible wall mid-air.
+    if (b.x > game.landEnd + 80) crash();
   }
 }
 

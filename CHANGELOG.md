@@ -18,6 +18,11 @@ Built iteratively in a single development channel; dates reflect that work
   game keeps its own boards. Asteroids unaffected.
 
 ### Stunt Cycle (new)
+- **Fixed the "invisible wall" on long bus rows.** The off-screen crash boundary
+  used the fixed screen width, so once the ramp extended past it (~16+ buses) the
+  bike exploded mid-air before reaching the ramp. It's now relative to the ramp
+  end (`landEnd + 80`). Verified by simulation: 19+ buses are landable again
+  (near-max throttle), with the real ceiling at ~22–23 buses (max launch speed).
 - **Fit-to-screen scaling.** When the buses + landing ramp would run off the right
   edge (~15+ buses), the scene now zooms out (anchored at the ground) so the whole
   landing zone stays visible. Physics is unchanged — only the drawing scales.
