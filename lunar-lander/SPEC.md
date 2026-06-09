@@ -101,10 +101,17 @@ At the moment of contact on a flat pad:
 
 ## 7. Camera / zoom
 
-The camera **follows the lander and zooms with altitude**. You start **high**
-(`START_ALT ≈ 760`, ~2.5× the old start) and **zoomed out** (`scale 0.45`) showing
-a broad landscape, then it **zooms in** smoothly to a close-up (`scale 2.2`) for
-the final approach. Physics stays in fixed world coordinates; only drawing scales.
+The camera **follows the lander** and scales to keep the **ground pinned near the
+bottom of the screen** (≈ y 570) at any altitude — a constant terrain reference.
+`scale = clamp(ANCHOR_BUDGET(330) / altitude, 0.16, 2.2)`:
+
+- **High up** → very zoomed out, and it zooms out *more* as you climb (terrain
+  stays in view up to ~2000+ ft; min scale 0.16).
+- **Only when really close** (alt < ~150) does the zoom cap at the **2.2 close-up**;
+  the ground then rises to meet the lander for the touchdown.
+
+You start high (`START_ALT ≈ 760`). Physics stays in fixed world coordinates; only
+drawing scales. The terrain is drawn tiled across the full visible width at any zoom.
 
 ---
 

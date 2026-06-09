@@ -147,6 +147,8 @@ const HARD_VY = 0.9, HARD_VX = 0.7, HARD_ANG = 0.22;   // rough but survivable
 const FOOT = 12;                                        // lander feet below center
 const WORLD_W = 2600;                                   // wide, seamless wrap-around landscape
 const START_ALT = 760;                                  // start high (~2.5x the old altitude)
+const ANCHOR_Y = 240;                                   // the lander sits here on screen
+const ANCHOR_BUDGET = 330;                              // screen px below the lander reserved for ground
 
 // =====================================================================
 //  SOUND
@@ -305,7 +307,8 @@ function newRound() {
   game.terrain = t.pts; game.pads = t.pads;
   game.lander = newLander();
   game.msg = ""; game.msgTimer = 0; game.crashed = false; game.particles = [];
-  cam.x = game.lander.x; cam.y = game.lander.y; cam.scale = 0.45;   // snap to the zoomed-out start
+  cam.x = game.lander.x; cam.y = game.lander.y;
+  cam.scale = clamp(ANCHOR_BUDGET / START_ALT, 0.16, 2.2);   // snap to the zoomed-out start
 }
 function spawnDebris(x, y) {
   for (let i = 0; i < 22; i++) {
@@ -450,9 +453,13 @@ function updateCamera() {
   if (!game.lander) return;
   const L = game.lander;
   const alt = Math.max(0, terrainYAt(L.x) - (L.y + FOOT));
-  // High up = broad landscape (0.45); final approach = close-up (2.2).
-  const target = clamp(2.2 - (alt / 720) * 1.75, 0.45, 2.2);
-  cam.scale += (target - cam.scale) * 0.06;                    // ease so the zoom is smooth
+  // Pin the ground near the bottom of the screen at ANY altitude, so the terrain
+  // is always a visible reference. Scale = (screen budget below the lander) / alt.
+  // High up -> very zoomed out (and zooms out more as you climb); only when really
+  // close (alt < ~150) does it cap at the 2.2 landing close-up. Min 0.16 keeps the
+  // terrain in view up to ~2000+ ft.
+  const target = clamp(ANCHOR_BUDGET / Math.max(alt, 1), 0.16, 2.2);
+  cam.scale += (target - cam.scale) * 0.07;                    // ease so the zoom is smooth
   cam.x += (L.x - cam.x) * 0.12;                               // follow freely — no wrap/clamp
   cam.y += (L.y - cam.y) * 0.12;
 }
@@ -460,8 +467,10 @@ function drawScene() {
   // Draw the world tiled (3 copies around the camera) so the wide landscape
   // scrolls endlessly with no visible seam or snap-back.
   const flash = Math.floor(game.frame / 15) % 2 === 0;
-  const k0 = Math.round(cam.x / WORLD_W);
-  for (let k = k0 - 1; k <= k0 + 1; k++) {
+  const halfRange = (W / 2) / cam.scale;   // how far the view reaches at the current zoom
+  const kmin = Math.floor((cam.x - halfRange) / WORLD_W) - 1;
+  const kmax = Math.floor((cam.x + halfRange) / WORLD_W) + 1;
+  for (let k = kmin; k <= kmax; k++) {
     const off = k * WORLD_W;
     ctx.strokeStyle = "#9ab"; ctx.lineWidth = 2;
     ctx.beginPath();
@@ -504,7 +513,7 @@ function draw() {
   updateCamera();
   drawStars();                          // fixed background
   ctx.save();
-  ctx.translate(W / 2, H * 0.45);
+  ctx.translate(W / 2, ANCHOR_Y);
   ctx.scale(cam.scale, cam.scale);
   ctx.translate(-cam.x, -cam.y);
   drawScene();                          // terrain / pads / debris (zoomed)

@@ -25,6 +25,11 @@ Built iteratively in a single development channel; dates reflect that work
   landscape is now a wide (2600px) field with up to ~8 pads that **scrolls
   endlessly** — the lander flies past the old screen edge with continuous tiling
   instead of snapping back to the left.
+- **Reworked the zoom to keep terrain always in view.** Scale now pins the ground
+  near the bottom of the screen (`330/alt`, clamped 0.16–2.2): it stays zoomed out
+  while high and zooms out *more* as you climb (terrain visible to ~2000+ ft),
+  and only caps the zoom-in (2.2) within ~150 ft for the landing — instead of the
+  old curve that zoomed in too fast and lost the landscape.
 
 ### Arcade
 - **Restructured into a multi-game arcade.** Root `index.html` is now a games
