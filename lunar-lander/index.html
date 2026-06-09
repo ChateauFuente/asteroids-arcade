@@ -25,6 +25,8 @@
   }
   .overlay h1 { font-size: 40px; letter-spacing: 6px; margin: 0; color: #cdf; }
   .group-label { font-size: 12px; color: #888; letter-spacing: 2px; }
+  #practiceChk { color: #9bd; font-size: 12px; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  #practiceChk input { accent-color: #0ff; width: 15px; height: 15px; }
   .seg { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .seg button, .pbtn, #startBtn {
     background: #111; color: #0ff; border: 1px solid #0ff; border-radius: 8px;
@@ -71,6 +73,7 @@
         <button data-d="intermediate" class="sel">INTERMEDIATE</button>
         <button data-d="expert">EXPERT</button>
       </div>
+      <label id="practiceChk"><input type="checkbox" id="unlimited"> UNLIMITED FUEL (PRACTICE — NO HIGH SCORE)</label>
       <div id="menuBoard" class="board"></div>
       <button id="startBtn">START &#9654;</button>
     </div>
@@ -134,11 +137,12 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 //  DIFFICULTY
 // =====================================================================
 const DIFFS = {
-  novice:       { label: "NOVICE",       fuel: 1000, gravity: 0.018, rotCap: Math.PI / 2 },       // ±90°
-  intermediate: { label: "INTERMEDIATE", fuel: 750,  gravity: 0.025, rotCap: 3 * Math.PI / 4 },   // ±135°
-  expert:       { label: "EXPERT",       fuel: 550,  gravity: 0.033, rotCap: Infinity },          // full
+  novice:       { label: "NOVICE",       gravity: 0.018, rotCap: Math.PI / 2 },       // ±90°
+  intermediate: { label: "INTERMEDIATE", gravity: 0.025, rotCap: 3 * Math.PI / 4 },   // ±135°
+  expert:       { label: "EXPERT",       gravity: 0.033, rotCap: Infinity },          // full
 };
-const settings = { difficulty: "intermediate" };
+const settings = { difficulty: "intermediate", unlimitedFuel: false };
+const START_FUEL = 1000, LAND_FUEL = 100, CRASH_FUEL = 50, LOW_FUEL = 100;
 
 // --- Physics constants ---
 const THRUST = 0.060, BURN = 0.9, ROT = 0.045;
@@ -241,9 +245,9 @@ async function postScore(diff, initials, score) {
 // =====================================================================
 const game = {
   state: "menu",        // menu | playing | paused | over
-  score: 0, fuel: 0,
+  score: 0, fuel: 0, practice: false,
   terrain: null, pads: null,
-  lander: null,
+  lander: null, camAlt: 760,
   msg: "", msgColor: "#0ff", msgTimer: 0,   // landing/crash banner + freeze
   crashed: false, particles: [],
   playedDiff: "intermediate",
@@ -307,7 +311,7 @@ function newRound() {
   game.terrain = t.pts; game.pads = t.pads;
   game.lander = newLander();
   game.msg = ""; game.msgTimer = 0; game.crashed = false; game.particles = [];
-  cam.x = game.lander.x; cam.y = game.lander.y;
+  cam.x = game.lander.x; cam.y = game.lander.y; game.camAlt = START_ALT;
   cam.scale = clamp(ANCHOR_BUDGET / START_ALT, 0.16, 2.2);   // snap to the zoomed-out start
 }
 function spawnDebris(x, y) {
@@ -322,7 +326,8 @@ function startGame() {
   game.playedDiff = settings.difficulty;
   game.state = "playing";
   game.score = 0;
-  game.fuel = DIFFS[settings.difficulty].fuel;
+  game.practice = settings.unlimitedFuel;
+  game.fuel = START_FUEL;             // every game starts with 1000
   newRound();
 }
 
@@ -341,23 +346,24 @@ function resolveContact() {
   stopThrust();
   if (flat && soft) {
     const pts = mult * 100;
-    game.score += pts; game.fuel += 40 + mult * 20;   // soft landing refuels
+    game.score += pts; if (!game.practice) game.fuel += LAND_FUEL;   // +100 fuel (flat)
     game.msg = (mult > 1 ? "GOOD LANDING  x" + mult : "GOOD LANDING") + "  +" + pts; game.msgColor = "#0ff";
     sndLand();
   } else if (flat && slow) {
     const pts = mult * 30;
-    game.score += pts; game.fuel += mult * 6;
+    game.score += pts; if (!game.practice) game.fuel += LAND_FUEL;   // +100 fuel (flat)
     game.msg = "ROUGH LANDING  +" + pts; game.msgColor = "#ff0";
     sndLand();
   } else {
     game.crashed = true; spawnDebris(L.x, L.y);
+    if (!game.practice) game.fuel = Math.max(0, game.fuel - CRASH_FUEL);   // -50 fuel
     game.msg = flat ? "TOO FAST!" : "TOO STEEP!"; game.msgColor = "#f44";
     sndCrash();
   }
   game.msgTimer = 100;
 }
 function afterBanner() {
-  if (game.fuel <= 0) endGame();
+  if (!game.practice && game.fuel <= 0) endGame();   // practice = endless, no game over
   else newRound();
 }
 function endGame() {
@@ -402,13 +408,16 @@ function update() {
   if (keys["ArrowRight"]) L.angle += ROT;
   if (diff.rotCap !== Infinity) L.angle = clamp(L.angle, -diff.rotCap, diff.rotCap);
 
-  L.thrusting = (keys["ArrowUp"] || keys["Space"]) && game.fuel > 0;
+  L.thrusting = (keys["ArrowUp"] || keys["Space"]) && (game.practice || game.fuel > 0);
   if (L.thrusting) {
     L.vx += Math.sin(L.angle) * THRUST;
     L.vy += -Math.cos(L.angle) * THRUST;
-    game.fuel = Math.max(0, game.fuel - BURN);
+    if (!game.practice) game.fuel = Math.max(0, game.fuel - BURN);
     startThrust();
   } else stopThrust();
+
+  // Low-fuel warning beep (all levels, real mode).
+  if (!game.practice && game.fuel > 0 && game.fuel <= LOW_FUEL && game.frame % 48 === 0) tone(440, 0.1, "square", 0.12);
 
   L.vy += diff.gravity;
   L.x += L.vx; L.y += L.vy;   // x is unbounded; the camera follows and terrain tiles seamlessly
@@ -458,10 +467,12 @@ function updateCamera() {
   // High up -> very zoomed out (and zooms out more as you climb); only when really
   // close (alt < ~150) does it cap at the 2.2 landing close-up. Min 0.16 keeps the
   // terrain in view up to ~2000+ ft.
-  const target = clamp(ANCHOR_BUDGET / Math.max(alt, 1), 0.16, 2.2);
-  cam.scale += (target - cam.scale) * 0.07;                    // ease so the zoom is smooth
-  cam.x += (L.x - cam.x) * 0.12;                               // follow freely — no wrap/clamp
-  cam.y += (L.y - cam.y) * 0.12;
+  // Smooth the altitude first so the zoom doesn't pump as the lander passes over
+  // bumps in the terrain; derive the scale from the smoothed value.
+  game.camAlt += (alt - game.camAlt) * 0.05;
+  cam.scale = clamp(ANCHOR_BUDGET / Math.max(game.camAlt, 1), 0.16, 2.2);
+  cam.x += (L.x - cam.x) * 0.10;                               // follow freely — no wrap/clamp
+  cam.y += (L.y - cam.y) * 0.10;
 }
 function drawScene() {
   // Draw the world tiled (3 copies around the camera) so the wide landscape
@@ -495,13 +506,17 @@ function hud() {
   const L = game.lander;
   const alt = Math.max(0, Math.round(terrainYAt(L.x) - (L.y + FOOT)));
   const hs = (L.vx).toFixed(2), vs = (-L.vy).toFixed(2);   // vs: + = descending shown as down
+  const low = !game.practice && game.fuel <= LOW_FUEL;
   ctx.font = "15px 'Courier New', monospace"; ctx.textAlign = "left";
   ctx.fillStyle = "#fff"; ctx.fillText("SCORE " + game.score, 16, 24);
-  ctx.fillStyle = game.fuel < 80 ? "#f44" : "#fff"; ctx.fillText("FUEL " + Math.round(game.fuel), 16, 46);
+  ctx.fillStyle = low ? "#f44" : "#fff";
+  ctx.fillText("FUEL " + (game.practice ? "∞" : Math.round(game.fuel)), 16, 46);
   ctx.textAlign = "right";
   ctx.fillStyle = "#fff"; ctx.fillText("ALT " + alt, W - 16, 24);
   ctx.fillStyle = Math.abs(L.vx) > SOFT_VX ? "#f44" : "#0f0"; ctx.fillText("H-SPD " + hs, W - 16, 46);
   ctx.fillStyle = Math.abs(L.vy) > SOFT_VY ? "#f44" : "#0f0"; ctx.fillText("V-SPD " + (-L.vy).toFixed(2), W - 16, 68);
+  // Low-fuel warning: flashing banner + periodic beep (all levels, real mode only).
+  if (low && Math.floor(game.frame / 18) % 2 === 0) centerText("LOW FUEL", 22, 92, "#f44");
 }
 function centerText(t, size, y, color) {
   ctx.fillStyle = color; ctx.font = size + "px 'Courier New', monospace"; ctx.textAlign = "center";
@@ -557,6 +572,8 @@ document.querySelectorAll("#diffs button").forEach(b => b.onclick = () => {
   renderBoards();
   fetchBoard(settings.difficulty);
 });
+// Unlimited-fuel (practice) toggle — no high score in this mode.
+document.getElementById("unlimited").onchange = (e) => { settings.unlimitedFuel = e.target.checked; };
 
 // Pause
 function togglePause() {

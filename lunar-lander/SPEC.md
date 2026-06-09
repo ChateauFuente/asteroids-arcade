@@ -55,20 +55,23 @@ could map throttle levels to keys.)
 
 ## 4. Physics & tuning (proposed constants — to verify by simulation)
 
-By difficulty (fuel / gravity / rotation cap from vertical):
+Difficulty differs by **gravity and rotation cap** (fuel is the same for all):
 
-| Level | Start fuel | Gravity (px/frame²) | Rotation cap |
-|---|---|---|---|
-| Novice | 1000 | 0.018 | ±90° |
-| Intermediate (default) | 750 | 0.025 | ±135° |
-| Expert | 550 | 0.033 | full 360° |
+| Level | Gravity (px/frame²) | Rotation cap |
+|---|---|---|
+| Novice | 0.018 | ±90° |
+| Intermediate (default) | 0.025 | ±135° |
+| Expert | 0.033 | full 360° |
 
 - **Thrust:** `0.060` px/frame² along the lander's "up" while held (must beat
   gravity to climb). Burns `~0.9` fuel/frame.
 - **Rotation:** `0.045` rad/frame, clamped to the level's cap (Expert = no clamp).
-- **Start:** top of screen, small random horizontal drift.
-- **Fuel persists** across rounds; soft landings award a fuel bonus (extends play).
-  Game over when fuel runs out.
+- **Fuel economy (real mode):** every game starts with **1000**; thrust burns it;
+  **+100** on any successful landing (flat — *not* multiplied; the ×2–×5 is
+  score-only); **−50** on a crash; **game over at 0**. **Low-fuel warning** (red
+  FUEL + flashing "LOW FUEL" + beep) at **≤100**, all levels.
+- **Unlimited fuel (practice):** a menu checkbox — fuel never depletes, the game
+  never ends, and **no high score is posted**. Just for practice.
 
 ---
 

@@ -25,6 +25,13 @@ Built iteratively in a single development channel; dates reflect that work
   landscape is now a wide (2600px) field with up to ~8 pads that **scrolls
   endlessly** — the lander flies past the old screen edge with continuous tiling
   instead of snapping back to the left.
+- **Smoother camera + new fuel economy.** Smoothed the zoom (drives off an eased
+  altitude) so it no longer pumps as the lander passes over terrain bumps. Fuel:
+  every game starts at **1000** (same for all levels — difficulty is now gravity +
+  rotation cap), **+100** on a successful landing (flat, not multiplied), **−50**
+  on a crash, **low-fuel warning at ≤100** (red + flashing "LOW FUEL" + beep), game
+  over at 0. Added an **Unlimited Fuel (practice)** menu checkbox — endless, no high
+  score. Verified by simulation (−50/crash, warning, game-over at 0, ∞ in practice).
 - **Reworked the zoom to keep terrain always in view.** Scale now pins the ground
   near the bottom of the screen (`330/alt`, clamped 0.16–2.2): it stays zoomed out
   while high and zooms out *more* as you climb (terrain visible to ~2000+ ft),
