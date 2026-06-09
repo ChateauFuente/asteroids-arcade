@@ -17,19 +17,22 @@ teal-cyan / monospace, matching the arcade.
 
 ---
 
-## 2. The run: two lanes + a tube
+## 2. The run: three lanes + two tubes
 
-Like the original's platform/tube layout, simplified to two lanes:
+Matching the original's three-platform layout — two stacked run-up lanes feed the
+jump lane, zig-zagging via tubes:
 
-1. **Top run-up lane** — the bike enters at the right and drives **right → left**.
-   You set the speed here, adjustable the whole way (**↑ faster, ↓ slower**).
-2. **Tube** — at the left it drops through a tube down to the bottom lane,
-   carrying that speed.
-3. **Jump lane** — it rides **left → right**, up the takeoff ramp, and launches
-   over the buses toward the landing ramp.
+1. **Lane A (top run-up)** — enters at the left, drives **left → right**, building
+   throttle (**↑ faster, ↓ slower**). Tubes down on the **right**.
+2. **Lane B (middle run-up)** — drives **right → left**, *still building throttle*.
+   Tubes down on the **left**.
+3. **Ramp (jump) lane** — rides **left → right**, up the takeoff ramp, and launches.
 
-So the throttle decision happens on the top lane; the bottom lane is the locked-in
-approach and jump.
+Two run-up lanes ≈ 1360px of acceleration, so the throttle can build to ~22.5
+(cap is **MAX_S = 30**, doubled from 15 with the same fill rate — the extra lane
+provides the extra run-up time). Simulated ceiling: **~50 buses** (the run-up
+distance, not the cap, is the limit; a 3rd run-up lane would reach ~75). The
+fit-to-screen zoom stays readable through that (vs ≈ 0.47 at ~48 buses).
 
 ---
 
@@ -79,7 +82,7 @@ Game over at 0 lives; best score kept locally (`localStorage` key `stuntCycleHig
 - **Phases:** `approach` (top lane, set speed) → `tube` (drop down the left tube)
   → `run` (bottom lane to the ramp) → `air` (projectile + angle control) →
   `done` (~1 s CLEARED!/CRASH! freeze, then reset).
-- **Speed:** `ACCEL 0.18` / `BRAKE 0.22` per frame, clamped `MIN_S 1.5 … MAX_S 15`;
+- **Speed:** `ACCEL 0.18` / `BRAKE 0.22` per frame, clamped `MIN_S 1.5 … MAX_S 30`;
   carried unchanged through the tube and jump.
 - **Air:** rotate at `ROT 0.045`/frame; gravity `G 0.34`.
 - **Landing rule:** `PHI = atan2(LAND_RISE, LAND_LEN)`, `LEANBACK = 0.6·π/2`,

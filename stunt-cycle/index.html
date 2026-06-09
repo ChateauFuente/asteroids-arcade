@@ -216,9 +216,12 @@ function sndCrash() { stopEngine(); noise(0.6, 0.5, 700); tone(90, 0.5, "square"
 function sndClear() { tone(523, 0.1, "square", 0.18); tone(784, 0.16, "square", 0.18, 0.1); }
 
 // --- Geometry ---
-const GY = 470;                                   // bottom ground / jump lane
-const TOP_Y = 150, TOP_LEFT = 60, TOP_RIGHT = 740; // top run-up lane
-const TUBE_X = 60;                                 // left tube joins the lanes
+const GY = 470;                                   // bottom ground / jump (ramp) lane
+// Two stacked run-up lanes feed the jump lane, zig-zagging via tubes:
+//   A (top)  L->R  --tube down (right)-->  B (middle) R->L  --tube down (left)-->  ramp lane L->R
+const A_Y = 90, B_Y = 210;                         // top + middle run-up lanes
+const LANE_LEFT = 60, LANE_RIGHT = 740;
+const TUBE_R = LANE_RIGHT, TUBE_L = LANE_LEFT;     // right tube A->B, left tube B->ramp
 const RAMP_X0 = 150, LIP_X = 240, LIP_Y = GY - 55; // takeoff ramp
 const TH = Math.atan2(55, LIP_X - RAMP_X0);        // takeoff angle
 const BUS_X0 = 262, BUS_W = 26, BUS_H = 34, BUS_TOP = GY - BUS_H;
@@ -228,7 +231,7 @@ const LEANBACK = 0.60 * (Math.PI / 2);             // allowed rear-first lean (6
 const FRONT_EPS = 0.10;                            // tiny tolerance for a both-wheels landing
 const WHEEL_R = 9, AX = 12;                         // wheel radius, half wheelbase
 const G = 0.34;
-const MIN_S = 1.5, MAX_S = 15;
+const MIN_S = 1.5, MAX_S = 30;   // throttle capacity doubled (same fill rate) — two run-up lanes
 const ACCEL = 0.18, BRAKE = 0.22, ROT = 0.045;
 
 function rampProfile(x) {
@@ -238,10 +241,10 @@ function rampProfile(x) {
 }
 const game = {
   state: "menu",            // menu | playing | paused | over
-  phase: "approach",        // approach | tube | run | air | done
+  phase: "approachA",       // approachA | tubeAB | approachB | tubeBC | run | air | done
   lives: 3, score: 0, numBuses: 2,
   scores: loadLocalScores(),
-  bike: { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 },
+  bike: { x: LANE_LEFT, y: A_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: 1 },
   debris: [], crashTimer: 0, clearTimer: 0,
   busEnd: 0, landStart: 0, landEnd: 0, frame: 0,
 };
@@ -252,8 +255,8 @@ function computeLayout() {
   game.landEnd = game.landStart + LAND_LEN;
 }
 function resetBike() {
-  game.phase = "approach";
-  game.bike = { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 };
+  game.phase = "approachA";
+  game.bike = { x: LANE_LEFT, y: A_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: 1 };
 }
 function startGame() {
   hideEntry(); hideOverButtons();
@@ -327,20 +330,39 @@ function update() {
   }
   if (game.clearTimer > 0) { if (--game.clearTimer === 0) resetBike(); return; }
 
-  if (game.phase === "approach") {
+  // Lane A (top): drive L->R, building throttle.
+  if (game.phase === "approachA") {
     startEngine();
     if (keys["ArrowUp"]) b.speed += ACCEL;
     if (keys["ArrowDown"]) b.speed -= BRAKE;
     b.speed = Math.max(MIN_S, Math.min(MAX_S, b.speed));
     setEngine(b.speed);
-    b.x -= b.speed;                    // drive right -> left
-    b.y = TOP_Y - WHEEL_R; b.angle = 0; b.face = -1;
-    if (b.x <= TOP_LEFT) { b.x = TUBE_X; game.phase = "tube"; }
+    b.x += b.speed;
+    b.y = A_Y - WHEEL_R; b.angle = 0; b.face = 1;
+    if (b.x >= LANE_RIGHT) { b.x = TUBE_R; game.phase = "tubeAB"; }
   }
-  else if (game.phase === "tube") {
+  // Right tube A->B.
+  else if (game.phase === "tubeAB") {
     setEngine(b.speed);
-    b.face = 1; b.angle = Math.PI / 2;  // pointing down through the tube
-    b.x = TUBE_X;
+    b.face = 1; b.angle = Math.PI / 2; b.x = TUBE_R;
+    b.y += Math.max(4, b.speed);
+    if (b.y >= B_Y - WHEEL_R) { b.y = B_Y - WHEEL_R; b.angle = 0; game.phase = "approachB"; }
+  }
+  // Lane B (middle): drive R->L, still building throttle.
+  else if (game.phase === "approachB") {
+    startEngine();
+    if (keys["ArrowUp"]) b.speed += ACCEL;
+    if (keys["ArrowDown"]) b.speed -= BRAKE;
+    b.speed = Math.max(MIN_S, Math.min(MAX_S, b.speed));
+    setEngine(b.speed);
+    b.x -= b.speed;
+    b.y = B_Y - WHEEL_R; b.angle = 0; b.face = -1;
+    if (b.x <= LANE_LEFT) { b.x = TUBE_L; game.phase = "tubeBC"; }
+  }
+  // Left tube B->ramp lane.
+  else if (game.phase === "tubeBC") {
+    setEngine(b.speed);
+    b.face = 1; b.angle = Math.PI / 2; b.x = TUBE_L;
     b.y += Math.max(4, b.speed);
     if (b.y >= GY - WHEEL_R) { b.y = GY - WHEEL_R; b.angle = 0; game.phase = "run"; sndJump(); }
   }
@@ -441,7 +463,7 @@ function drawBoard(top) {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  if (game.state !== "menu") {
+  if (game.state === "playing" || game.state === "paused") {
     // Fit-to-screen: once the landing ramp would run past the right edge, scale
     // the whole scene down (anchored at the ground line) so it stays visible.
     // Physics stays in world coordinates — only the drawing is zoomed.
@@ -450,16 +472,21 @@ function draw() {
     ctx.translate(0, GY); ctx.scale(vs, vs); ctx.translate(0, -GY);
 
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-    // Top run-up lane
-    ctx.beginPath(); ctx.moveTo(TUBE_X + 14, TOP_Y); ctx.lineTo(TOP_RIGHT, TOP_Y); ctx.stroke();
-    // Left tube connecting the two lanes
+    // Lane A (top run-up, L->R) + right tube down to lane B
+    ctx.beginPath(); ctx.moveTo(LANE_LEFT, A_Y); ctx.lineTo(TUBE_R + 14, A_Y); ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(TUBE_X - 14, TOP_Y); ctx.lineTo(TUBE_X - 14, GY);
-    ctx.moveTo(TUBE_X + 14, TOP_Y); ctx.lineTo(TUBE_X + 14, GY);
+    ctx.moveTo(TUBE_R - 14, A_Y); ctx.lineTo(TUBE_R - 14, B_Y);
+    ctx.moveTo(TUBE_R + 14, A_Y); ctx.lineTo(TUBE_R + 14, B_Y);
     ctx.stroke();
-    // Bottom jump lane: runway + takeoff ramp (with a vertical launch face)
+    // Lane B (middle run-up, R->L) + left tube down to the ramp lane
+    ctx.beginPath(); ctx.moveTo(TUBE_L - 14, B_Y); ctx.lineTo(LANE_RIGHT, B_Y); ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(TUBE_X + 14, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.lineTo(LIP_X, GY);
+    ctx.moveTo(TUBE_L - 14, B_Y); ctx.lineTo(TUBE_L - 14, GY);
+    ctx.moveTo(TUBE_L + 14, B_Y); ctx.lineTo(TUBE_L + 14, GY);
+    ctx.stroke();
+    // Ramp lane: runway + takeoff ramp (with a vertical launch face)
+    ctx.beginPath();
+    ctx.moveTo(TUBE_L + 14, GY); ctx.lineTo(RAMP_X0, GY); ctx.lineTo(LIP_X, LIP_Y); ctx.lineTo(LIP_X, GY);
     ctx.stroke();
 
     for (let i = 0; i < game.numBuses; i++) drawBus(BUS_X0 + i * BUS_W);
@@ -490,8 +517,8 @@ function draw() {
     ctx.fillText("BUSES " + game.numBuses, W - 20, 30);
     ctx.fillText("HI " + (game.scores[0] ? game.scores[0].score : 0), W - 20, 55);
 
-    // Speed meter (during the run-up / approach)
-    if (game.phase === "approach" || game.phase === "tube" || game.phase === "run") {
+    // Speed meter (during the run-up, before the jump)
+    if (game.phase !== "air" && game.phase !== "done") {
       ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2; ctx.strokeRect(20, H - 40, 220, 18);
       ctx.fillStyle = "#0ff"; ctx.fillRect(22, H - 38, 216 * (game.bike.speed - MIN_S) / (MAX_S - MIN_S), 14);
       ctx.font = "13px 'Courier New', monospace"; ctx.textAlign = "left";
@@ -507,9 +534,13 @@ function draw() {
     drawBoard(225);
   }
   if (game.state === "over") {
-    centerText("GAME OVER", 44, 110, "#f44");
-    centerText("SCORE " + game.score, 20, 146);
-    drawBoard(185);   // PLAY AGAIN / MENU / ARCADE buttons are an HTML overlay below
+    // Opaque: fill black so the run-up lanes don't show through, then a dialog frame.
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2;
+    roundRectPath(W / 2 - 210, 78, 420, 362, 12); ctx.stroke();
+    centerText("GAME OVER", 44, 122, "#f44");
+    centerText("SCORE " + game.score, 20, 156);
+    drawBoard(190);   // PLAY AGAIN / MENU / ARCADE buttons are an HTML overlay over the box
   }
 }
 

@@ -34,6 +34,12 @@ Built iteratively in a single development channel; dates reflect that work
   game keeps its own boards. Asteroids unaffected.
 
 ### Stunt Cycle (new)
+- **Three-lane run-up + doubled throttle.** Added a second stacked run-up lane
+  (top + middle, zig-zagging via two tubes into the jump lane) and doubled the
+  throttle cap to MAX_S=30 (same fill rate). Simulation: this raises the ceiling
+  from ~25 to **~50 buses**; the fit-to-screen zoom stays readable (vs≈0.47 at 48).
+- **Opaque game-over screen** — fills black with a dialog frame so the run-up
+  lanes no longer show through the score/leaderboard.
 - **Fixed the "invisible wall" on long bus rows.** The off-screen crash boundary
   used the fixed screen width, so once the ramp extended past it (~16+ buses) the
   bike exploded mid-air before reaching the ramp. It's now relative to the ramp
