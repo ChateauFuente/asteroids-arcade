@@ -16,6 +16,10 @@ Built iteratively in a single development channel; dates reflect that work
   (red when too hot), fuel, score. Physics verified fair by simulation.
 - Added to the arcade menu; follows the full template (pause/game-over/controls/
   style/leaderboard).
+- **Altitude zoom camera** (follows the lander; zooms out when high, in for the
+  final approach), **more mountainous terrain**, and you can now **set down on any
+  flat ground for base ×1 points** (marked pads still add their ×2–×5); slopes
+  crash. Crashes throw debris.
 
 ### Arcade
 - **Restructured into a multi-game arcade.** Root `index.html` is now a games

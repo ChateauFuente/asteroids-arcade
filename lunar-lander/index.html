@@ -241,10 +241,13 @@ const game = {
   terrain: null, pads: null,
   lander: null,
   msg: "", msgColor: "#0ff", msgTimer: 0,   // landing/crash banner + freeze
+  crashed: false, particles: [],
   playedDiff: "intermediate",
   boards: loadLocal(),
   frame: 0,
 };
+// Camera that follows the lander and zooms with altitude (out when high, in when low).
+const cam = { x: W / 2, y: H / 2, scale: 1 };
 
 function newLander() {
   return { x: rand(180, W - 180), y: 90, vx: rand(-0.6, 0.6), vy: 0.15, angle: 0, thrusting: false };
@@ -267,8 +270,8 @@ function genTerrain() {
       pads.push({ x0, x1: x, y, mult });
       x += rand(20, 50);
     } else {
-      x += rand(36, 78);
-      const ny = clamp(pts[pts.length - 1].y + rand(-55, 55), 360, 520);
+      x += rand(26, 60);    // narrower, taller steps = jagged mountains
+      const ny = clamp(pts[pts.length - 1].y + rand(-95, 95), 300, 545);
       pts.push({ x: Math.min(x, W), y: ny });
     }
   }
@@ -294,7 +297,14 @@ function newRound() {
   const t = genTerrain();
   game.terrain = t.pts; game.pads = t.pads;
   game.lander = newLander();
-  game.msg = ""; game.msgTimer = 0;
+  game.msg = ""; game.msgTimer = 0; game.crashed = false; game.particles = [];
+  cam.x = game.lander.x; cam.y = game.lander.y; cam.scale = 0.85;   // snap (no zoom jump)
+}
+function spawnDebris(x, y) {
+  for (let i = 0; i < 22; i++) {
+    const d = rand(0, Math.PI * 2), s = rand(0.5, 3.2);
+    game.particles.push({ x, y, vx: Math.cos(d) * s, vy: Math.sin(d) * s - 1, life: rand(20, 45), max: 45 });
+  }
 }
 function startGame() {
   hideOverlays();
@@ -308,26 +318,30 @@ function startGame() {
 
 // Resolve a touchdown.
 function resolveContact() {
-  const L = game.lander, diff = DIFFS[settings.difficulty];
-  const pad = padAt(L.x);
-  const onPad = pad && L.x > pad.x0 + 4 && L.x < pad.x1 - 4;
+  const L = game.lander;
   const a = ((L.angle % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;  // normalize to -pi..pi
   const upright = Math.abs(a);
   const slow = Math.abs(L.vy) <= HARD_VY && Math.abs(L.vx) <= HARD_VX && upright <= HARD_ANG;
   const soft = Math.abs(L.vy) <= SOFT_VY && Math.abs(L.vx) <= SOFT_VX && upright <= SOFT_ANG;
+  // You can set down on ANY flat ground (base x1). A marked pad adds its multiplier;
+  // a slope under the feet means there's nowhere level to land = crash.
+  const flat = Math.abs(terrainYAt(L.x - 12) - terrainYAt(L.x + 12)) <= 5;
+  const pad = padAt(L.x);
+  const mult = pad ? pad.mult : 1;
   stopThrust();
-  if (onPad && soft) {
-    const pts = pad.mult * 100;
-    game.score += pts; game.fuel += 40 + pad.mult * 20;   // soft landing refuels
-    game.msg = "GOOD LANDING  x" + pad.mult + "  +" + pts; game.msgColor = "#0ff";
+  if (flat && soft) {
+    const pts = mult * 100;
+    game.score += pts; game.fuel += 40 + mult * 20;   // soft landing refuels
+    game.msg = (mult > 1 ? "GOOD LANDING  x" + mult : "GOOD LANDING") + "  +" + pts; game.msgColor = "#0ff";
     sndLand();
-  } else if (onPad && slow) {
-    const pts = pad.mult * 30;
-    game.score += pts; game.fuel += pad.mult * 6;
+  } else if (flat && slow) {
+    const pts = mult * 30;
+    game.score += pts; game.fuel += mult * 6;
     game.msg = "ROUGH LANDING  +" + pts; game.msgColor = "#ff0";
     sndLand();
   } else {
-    game.msg = "CRASH"; game.msgColor = "#f44";
+    game.crashed = true; spawnDebris(L.x, L.y);
+    game.msg = flat ? "TOO FAST!" : "TOO STEEP!"; game.msgColor = "#f44";
     sndCrash();
   }
   game.msgTimer = 100;
@@ -367,6 +381,8 @@ document.addEventListener("keyup", e => { keys[e.code] = false; });
 // =====================================================================
 function update() {
   game.frame++;
+  for (const p of game.particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life--; }
+  game.particles = game.particles.filter(p => p.life > 0);
   if (game.state !== "playing") { stopThrust(); return; }
   const L = game.lander, diff = DIFFS[settings.difficulty];
 
@@ -420,13 +436,22 @@ function drawLander(x, y, angle, thrusting, ghost) {
   }
   ctx.restore();
 }
-function drawScene() {
-  // stars
+function drawStars() {   // fixed background (screen space), not zoomed
   ctx.fillStyle = "#234";
-  for (let i = 0; i < 40; i++) {
-    const sx = (i * 197) % W, sy = (i * 113) % 340;
-    ctx.fillRect(sx, sy, 1, 1);
-  }
+  for (let i = 0; i < 60; i++) { const sx = (i * 167) % W, sy = (i * 101) % 300; ctx.fillRect(sx, sy, 1, 1); }
+}
+function updateCamera() {
+  if (!game.lander) return;
+  const L = game.lander;
+  const alt = Math.max(0, terrainYAt(L.x) - (L.y + FOOT));
+  const target = clamp(2.2 - (alt / 400) * 1.5, 0.7, 2.2);    // high alt = zoom out (0.7), low = zoom in (2.2)
+  cam.scale += (target - cam.scale) * 0.08;                    // ease so the zoom is smooth
+  cam.x += (L.x - cam.x) * 0.12;
+  cam.y += (L.y - cam.y) * 0.12;
+  const halfW = (W / 2) / cam.scale;
+  if (halfW < W / 2) cam.x = clamp(cam.x, halfW, W - halfW);   // keep terrain on-screen when zoomed in
+}
+function drawScene() {
   // terrain
   ctx.strokeStyle = "#9ab"; ctx.lineWidth = 2;
   ctx.beginPath();
@@ -441,6 +466,12 @@ function drawScene() {
     ctx.fillStyle = flash ? "#0f0" : "#0a0"; ctx.font = "12px 'Courier New', monospace"; ctx.textAlign = "center";
     ctx.fillText("x" + p.mult, (p.x0 + p.x1) / 2, p.y - 6);
   }
+  // debris
+  for (const p of game.particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = "#fa0"; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
 }
 function hud() {
   const L = game.lander;
@@ -461,10 +492,18 @@ function centerText(t, size, y, color) {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   if (game.state === "menu") return;   // overlay handles the menu
-  drawScene();
-  if (game.msgTimer === 0 || game.msg !== "CRASH") drawLander(game.lander.x, game.lander.y, game.lander.angle, game.lander.thrusting);
-  hud();
-  if (game.msgTimer > 0) centerText(game.msg, 30, 160, game.msgColor);
+  updateCamera();
+  drawStars();                          // fixed background
+  ctx.save();
+  ctx.translate(W / 2, H * 0.45);
+  ctx.scale(cam.scale, cam.scale);
+  ctx.translate(-cam.x, -cam.y);
+  drawScene();                          // terrain / pads / debris (zoomed)
+  if (!(game.crashed && game.msgTimer > 0))
+    drawLander(game.lander.x, game.lander.y, game.lander.angle, game.lander.thrusting);
+  ctx.restore();
+  hud();                                // screen space
+  if (game.msgTimer > 0) centerText(game.msg, 28, 150, game.msgColor);
 }
 
 // =====================================================================
