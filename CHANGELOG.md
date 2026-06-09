@@ -45,6 +45,8 @@ Built iteratively in a single development channel; dates reflect that work
 - **Standard pause menu in every game:** RESUME · MENU (game's own title) · ◀ ARCADE.
   Asteroids' pause gained the ARCADE button; Stunt Cycle's pause went from
   resume-only to the full menu. Codified as the shared game template.
+- **Standard game-over menu in every game:** PLAY AGAIN · MENU · ◀ ARCADE. Stunt
+  Cycle's canvas game-over gained the matching button row (after initials entry).
 - **Back-to-arcade everywhere.** Asteroids now has a ◀ ARCADE link (amber) in the
   hint line and an ARCADE button on the game-over screen; Stunt Cycle's link is
   amber to match. Both carry the access key back to the menu.

@@ -51,6 +51,10 @@
   .pbtn:hover { background: #033; }
   .pbtn.arcade { color: #fb0; border-color: #fb0; }
   .pbtn.arcade:hover { background: #221800; }
+  #overButtons {
+    position: absolute; left: 50%; top: 60%; transform: translateX(-50%);
+    display: none; gap: 10px;
+  }
 </style>
 </head>
 <body>
@@ -66,6 +70,11 @@
       <button class="pbtn" id="pResume">RESUME</button>
       <button class="pbtn" id="pMenu">MENU</button>
       <button class="pbtn arcade" id="pArcade">&#9664; ARCADE</button>
+    </div>
+    <div id="overButtons">
+      <button class="pbtn" id="oAgain">PLAY AGAIN</button>
+      <button class="pbtn" id="oMenu">MENU</button>
+      <button class="pbtn arcade" id="oArcade">&#9664; ARCADE</button>
     </div>
   </div>
   <div id="hint">TOP LANE: &#8593; FASTER / &#8595; SLOWER &bull; TUBES DOWN TO THE JUMP &bull; IN AIR: &#8592; &#8594; ANGLE (land rear wheel first on the ramp) &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
@@ -140,6 +149,7 @@ async function submitInitials() {
   let v = (initialsEl.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "AAA";
   addScoreLocal(v, game.score);
   hideEntry();
+  showOverButtons();
   if (await postScore(v, game.score)) await fetchBoard();
 }
 initialsEl.addEventListener("input", () => { initialsEl.value = initialsEl.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3); });
@@ -148,7 +158,12 @@ document.getElementById("saveBtn").onclick = submitInitials;
 // On game over: show the latest shared board, and offer initials if you made it.
 function onGameOver() {
   game.state = "over";
-  (async () => { await fetchBoard(); if (qualifies(game.score)) showEntry(); })();
+  hideOverButtons();
+  (async () => {
+    await fetchBoard();
+    if (qualifies(game.score)) showEntry();   // initials first; buttons appear after SAVE
+    else showOverButtons();
+  })();
 }
 
 // =====================================================================
@@ -241,7 +256,7 @@ function resetBike() {
   game.bike = { x: TOP_RIGHT, y: TOP_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: -1 };
 }
 function startGame() {
-  hideEntry();
+  hideEntry(); hideOverButtons();
   game.state = "playing";
   game.lives = 3; game.score = 0; game.numBuses = 2;
   game.debris = []; game.crashTimer = 0; game.clearTimer = 0;
@@ -281,10 +296,19 @@ function togglePause() {
   else if (game.state === "paused") resumeGame();
 }
 function resumeGame() { if (game.state !== "paused") return; game.state = "playing"; pauseEl.style.display = "none"; }
-function pauseToMenu() { game.state = "menu"; stopEngine(); pauseEl.style.display = "none"; }
+function goToTitle() { game.state = "menu"; stopEngine(); pauseEl.style.display = "none"; hideEntry(); hideOverButtons(); }
+const ARCADE_HREF = document.getElementById("back").href;
 document.getElementById("pResume").onclick = resumeGame;
-document.getElementById("pMenu").onclick = pauseToMenu;
-document.getElementById("pArcade").onclick = () => { location.href = document.getElementById("back").href; };
+document.getElementById("pMenu").onclick = goToTitle;
+document.getElementById("pArcade").onclick = () => { location.href = ARCADE_HREF; };
+
+// Standard game-over menu: PLAY AGAIN, MENU (this game's title), ARCADE.
+const overBtns = document.getElementById("overButtons");
+function showOverButtons() { overBtns.style.display = "flex"; }
+function hideOverButtons() { overBtns.style.display = "none"; }
+document.getElementById("oAgain").onclick = startGame;
+document.getElementById("oMenu").onclick = goToTitle;
+document.getElementById("oArcade").onclick = () => { location.href = ARCADE_HREF; };
 
 // =====================================================================
 //  UPDATE
@@ -483,9 +507,7 @@ function draw() {
   if (game.state === "over") {
     centerText("GAME OVER", 44, 110, "#f44");
     centerText("SCORE " + game.score, 20, 146);
-    drawBoard(185);
-    // Sits between the bottom of the board (~298) and the top of the buses (~436).
-    if (lbEntry.style.display === "none") centerText("PRESS ENTER TO PLAY AGAIN", 15, 365);
+    drawBoard(185);   // PLAY AGAIN / MENU / ARCADE buttons are an HTML overlay below
   }
 }
 
