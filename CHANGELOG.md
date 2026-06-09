@@ -89,6 +89,18 @@ Built iteratively in a single development channel; dates reflect that work
   valid. Re-tuned ramp geometry (verified by simulation) so a real speed window
   exists at every bus count.
 
+### Arcade / mobile
+- **On-screen thumb controls (all games).** Replaced the button row below the
+  canvas with buttons that overlay the play area in thumb zones (shown only during
+  play): rotation/secondary on the left, primary actions on the right, and PAUSE
+  (top-left) + MUTE (top-right) as buttons (P/M keys don't exist on a phone).
+  Asteroids: ◀▶ left; HYPER / THRUST / FIRE right, with **FIRE long-press = toggle
+  auto-fire**. Lunar Lander: rotate + thrust on each side. Stunt Cycle: SLOWER/back
+  on the left, FASTER/forward on the right.
+- **Landscape lock (all games).** On phones the game now requires landscape; in
+  portrait it shows a "ROTATE TO LANDSCAPE" overlay and freezes, auto-resuming
+  (no pause) when you rotate back.
+
 ### Arcade / navigation
 - **Landscape + portrait support (all games).** The 4:3 canvas now fits within
   both the screen width and height (`min(100vw, 80vh·4/3)`), so it works in either

@@ -94,24 +94,45 @@
 
   #hint { margin-top: 12px; font-size: 12px; color: #888; letter-spacing: 1px; text-align: center; }
 
-  #touch { display: none; gap: 10px; margin-top: 14px; }
-  #touch button {
-    width: 60px; height: 60px; border-radius: 12px;
-    background: #111; color: #0ff; border: 1px solid #0ff;
-    font-size: 22px; touch-action: none;
+  /* ---- Mobile controls: overlay the canvas in thumb zones ---- */
+  #mctl { display: none; }
+  .mbtn {
+    position: absolute; z-index: 2; touch-action: none; -webkit-user-select: none; user-select: none;
+    background: rgba(8,18,18,0.42); border: 1.5px solid #0ff; color: #0ff;
+    border-radius: 12px; font-size: 22px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
   }
-  #touch button:active { background: #033; }
-  /* Landscape phones (short height): shrink the controls so they fit below the canvas. */
-  @media (max-height: 500px) {
-    #hint { font-size: 9px; margin-top: 5px; letter-spacing: 0; }
-    #touch { margin-top: 6px; gap: 8px; }
-    #touch button { width: 50px; height: 42px; font-size: 15px; }
+  .mbtn:active { background: rgba(0,110,110,0.6); }
+  .mbtn.on { background: rgba(0,150,150,0.75); }
+  .mbtn.amber { border-color: #fb0; color: #fb0; }
+  .mbtn .lbl { position: absolute; bottom: 3px; font-size: 8px; letter-spacing: 1px; }
+  .topbtn { top: 8px; width: 54px; height: 34px; font-size: 13px; }
+  #mPause { left: 8px; } #mMute { right: 8px; }
+  .act { width: 60px; height: 56px; }
+  .L1 { left: 12px; bottom: 14px; } .L2 { left: 84px; bottom: 14px; }
+  .R1 { right: 12px; bottom: 14px; } .R2 { right: 84px; bottom: 14px; } .R3 { right: 12px; bottom: 84px; }
+  #rotateMsg {
+    position: absolute; inset: 0; z-index: 9; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: #000; color: #0ff; text-align: center; font-size: 20px; letter-spacing: 2px; padding: 16px;
   }
+  #rotateMsg .big { font-size: 56px; }
+  @media (max-height: 500px) { #hint { font-size: 9px; margin-top: 5px; letter-spacing: 0; } }
 </style>
 </head>
 <body>
   <div id="stage">
     <canvas id="game" width="800" height="600"></canvas>
+    <div id="mctl">
+      <button class="mbtn topbtn" id="mPause">&#10073;&#10073;</button>
+      <button class="mbtn topbtn amber" id="mMute">&#9834;</button>
+      <button class="mbtn act L1" data-k="ArrowLeft">&#8634;</button>
+      <button class="mbtn act L2" data-k="ArrowRight">&#8635;</button>
+      <button class="mbtn act R3" id="mHyper">&#10022;<span class="lbl">HYPER</span></button>
+      <button class="mbtn act R2" data-k="ArrowUp">&#9650;<span class="lbl">THRUST</span></button>
+      <button class="mbtn act R1" id="mFire">&#9679;<span class="lbl">FIRE</span></button>
+    </div>
+    <div id="rotateMsg"><div class="big">&#8635;</div><div>ROTATE TO LANDSCAPE</div></div>
 
     <!-- ===== START MENU ===== -->
     <div id="menu" class="overlay">
@@ -198,16 +219,7 @@
     </div>
   </div>
 
-  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; &#8595; HYPERSPACE &bull; P PAUSE &bull; M MUTE &bull; <a id="arcadeLink" href="#">&#9664; ARCADE</a></div>
-
-  <div id="touch">
-    <button id="btnLeft">&#8634;</button>
-    <button id="btnThrust">&#9650;</button>
-    <button id="btnRight">&#8635;</button>
-    <button id="btnHyper">&#10022;</button>
-    <button id="btnFire">&#9679;</button>
-    <button id="btnPause">&#9208;</button>
-  </div>
+  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; THRUST &bull; SPACE FIRE &bull; &#8595; HYPERSPACE &bull; <a id="arcadeLink" href="#">&#9664; ARCADE</a></div>
 
 <script>
 // =====================================================================
@@ -786,12 +798,14 @@ function blackHolePull(o) {
 //  UPDATE
 // =====================================================================
 function update() {
+  if (portraitLock) { stopThrustSound(); stopSaucerSound(); return; }   // frozen in portrait
   game.frame++;
   for (const p of game.particles) { p.x += p.vx; p.y += p.vy; p.life--; }
   game.particles = game.particles.filter(p => p.life > 0);
 
   if (game.state !== "playing") { stopThrustSound(); stopSaucerSound(); return; }
   const ship = game.ship;
+  if (autofire) keys["Space"] = true;   // mobile auto-fire keeps the trigger held
 
   updateHeartbeat();
 
@@ -1216,31 +1230,60 @@ document.getElementById("pauseArcadeBtn").onclick = () => { location.href = ARCA
 document.getElementById("resumeBtn").onclick = resumeGame;
 document.getElementById("pauseMenuBtn").onclick = goMenu;
 
-// --- Touch controls ---
-function bindButton(id, code) {
-  const el = document.getElementById(id);
-  const down = e => {
-    e.preventDefault(); initAudio();
-    if (code === "hyper") { hyperspace(); return; }
-    if (code === "pause") { togglePause(); return; }
-    keys[code] = true;
-  };
-  const up = e => { e.preventDefault(); if (code !== "hyper" && code !== "pause") keys[code] = false; };
+// --- Mobile controls: on-screen buttons; rotation on the left, thrust/hyper/fire
+//     on the right; pause/mute as buttons; FIRE long-press = toggle auto-fire ---
+const isTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const mctl = document.getElementById("mctl");
+document.querySelectorAll(".mbtn[data-k]").forEach(el => {
+  const code = el.dataset.k;
+  const down = e => { e.preventDefault(); initAudio(); keys[code] = true; };
+  const up = e => { e.preventDefault(); keys[code] = false; };
   el.addEventListener("touchstart", down, { passive: false });
   el.addEventListener("touchend", up, { passive: false });
   el.addEventListener("touchcancel", up, { passive: false });
-  el.addEventListener("mousedown", down);
-  el.addEventListener("mouseup", up);
-  el.addEventListener("mouseleave", up);
+  el.addEventListener("mousedown", down); el.addEventListener("mouseup", up); el.addEventListener("mouseleave", up);
+});
+// Hyperspace: tap (press) once.
+function bindTap(id, fn) {
+  const el = document.getElementById(id);
+  const h = e => { e.preventDefault(); initAudio(); fn(); };
+  el.addEventListener("touchstart", h, { passive: false });
+  el.addEventListener("mousedown", h);
 }
-bindButton("btnLeft", "ArrowLeft");
-bindButton("btnRight", "ArrowRight");
-bindButton("btnThrust", "ArrowUp");
-bindButton("btnFire", "Space");
-bindButton("btnHyper", "hyper");
-bindButton("btnPause", "pause");
-if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
-  document.getElementById("touch").style.display = "flex";
+bindTap("mHyper", hyperspace);
+document.getElementById("mPause").onclick = () => { initAudio(); togglePause(); };
+const mMuteBtn = document.getElementById("mMute");
+mMuteBtn.onclick = () => { initAudio(); toggleMute(); mMuteBtn.textContent = muted ? "✕" : "♪"; };
+
+// FIRE: hold to fire; long-press (>450ms) toggles AUTO-FIRE on; tap while auto = off.
+let autofire = false, fireHoldTimer = null;
+const fireBtn = document.getElementById("mFire");
+function setFireUI() { fireBtn.classList.toggle("on", autofire); fireBtn.querySelector(".lbl").textContent = autofire ? "AUTO" : "FIRE"; }
+function fireDown(e) {
+  e.preventDefault(); initAudio();
+  if (autofire) { autofire = false; keys["Space"] = false; setFireUI(); return; }  // tap while auto -> off
+  keys["Space"] = true;
+  fireHoldTimer = setTimeout(() => { autofire = true; setFireUI(); }, 450);
+}
+function fireUp(e) { e.preventDefault(); clearTimeout(fireHoldTimer); if (!autofire) keys["Space"] = false; }
+fireBtn.addEventListener("touchstart", fireDown, { passive: false });
+fireBtn.addEventListener("touchend", fireUp, { passive: false });
+fireBtn.addEventListener("touchcancel", fireUp, { passive: false });
+fireBtn.addEventListener("mousedown", fireDown); fireBtn.addEventListener("mouseup", fireUp); fireBtn.addEventListener("mouseleave", fireUp);
+
+// --- Landscape lock: portrait shows a "rotate" overlay and freezes; landscape resumes ---
+let portraitLock = false;
+const rotateMsg = document.getElementById("rotateMsg");
+function checkOrientation() {
+  if (!isTouch) return;
+  portraitLock = window.innerHeight > window.innerWidth;
+  rotateMsg.style.display = portraitLock ? "flex" : "none";
+  if (portraitLock) stopThrustSound();
+}
+if (isTouch) {
+  window.addEventListener("resize", checkOrientation);
+  window.addEventListener("orientationchange", checkOrientation);
+  checkOrientation();
 }
 
 // =====================================================================
@@ -1249,7 +1292,10 @@ if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
 selectPreset("normal");   // sensible defaults + fills the controls
 goMenu();
 fetchRemoteBoards();      // sync the shared leaderboard if the API is reachable
-function loop() { update(); draw(); requestAnimationFrame(loop); }
+function loop() {
+  if (isTouch) mctl.style.display = game.state === "playing" ? "block" : "none";  // controls only in play
+  update(); draw(); requestAnimationFrame(loop);
+}
 loop();
 </script>
 </body>

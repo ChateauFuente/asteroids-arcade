@@ -19,18 +19,28 @@
   #hint { margin-top: 12px; font-size: 12px; color: #888; letter-spacing: 1px; text-align: center; }
   #back { color: #fb0; text-decoration: none; }
   #back:hover { text-decoration: underline; }
-  #touch { display: none; gap: 10px; margin-top: 14px; }
-  #touch button {
-    width: 64px; height: 58px; border-radius: 12px; background: #111; color: #0ff;
-    border: 1px solid #0ff; font-size: 18px; touch-action: none;
+  /* ---- Mobile controls: overlay the canvas in thumb zones ---- */
+  #mctl { display: none; }
+  .mbtn {
+    position: absolute; z-index: 2; touch-action: none; -webkit-user-select: none; user-select: none;
+    background: rgba(8,18,18,0.42); border: 1.5px solid #0ff; color: #0ff;
+    border-radius: 12px; font-size: 22px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
   }
-  #touch button:active { background: #033; }
-  /* Landscape phones (short height): shrink the controls so they fit below the canvas. */
-  @media (max-height: 500px) {
-    #hint { font-size: 9px; margin-top: 5px; letter-spacing: 0; }
-    #touch { margin-top: 6px; gap: 8px; }
-    #touch button { width: 56px; height: 44px; font-size: 16px; }
+  .mbtn:active { background: rgba(0,110,110,0.6); }
+  .mbtn.amber { border-color: #fb0; color: #fb0; }
+  .mbtn .lbl { position: absolute; bottom: 3px; font-size: 8px; letter-spacing: 1px; }
+  .topbtn { top: 8px; width: 54px; height: 34px; font-size: 13px; }
+  #mPause { left: 8px; } #mMute { right: 8px; }
+  .act { width: 64px; height: 58px; }
+  .L1 { left: 12px; bottom: 14px; } .L2 { left: 88px; bottom: 14px; }
+  .R1 { right: 12px; bottom: 14px; } .R2 { right: 88px; bottom: 14px; }
+  #rotateMsg {
+    position: absolute; inset: 0; z-index: 9; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: #000; color: #0ff; text-align: center; font-size: 20px; letter-spacing: 2px; padding: 16px;
   }
+  #rotateMsg .big { font-size: 56px; }
   #lbentry {
     position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
     display: none; flex-direction: column; align-items: center; gap: 8px;
@@ -79,6 +89,15 @@
 <body>
   <div id="stage">
     <canvas id="game" width="800" height="600"></canvas>
+    <div id="mctl">
+      <button class="mbtn topbtn" id="mPause">&#10073;&#10073;</button>
+      <button class="mbtn topbtn amber" id="mMute">&#9834;</button>
+      <button class="mbtn act L1" data-k="ArrowDown">&#8595;<span class="lbl">SLOWER</span></button>
+      <button class="mbtn act L2" data-k="ArrowLeft">&#8634;</button>
+      <button class="mbtn act R1" data-k="ArrowUp">&#8593;<span class="lbl">FASTER</span></button>
+      <button class="mbtn act R2" data-k="ArrowRight">&#8635;</button>
+    </div>
+    <div id="rotateMsg"><div class="big">&#8635;</div><div>ROTATE TO LANDSCAPE</div></div>
     <div id="menu">
       <div class="ptitle">STUNT CYCLE</div>
       <div id="menuBoard" class="board"></div>
@@ -101,13 +120,7 @@
       <button class="pbtn arcade" id="oArcade">&#9664; ARCADE</button>
     </div>
   </div>
-  <div id="hint">TOP LANE: &#8593; FASTER / &#8595; SLOWER &bull; TUBES DOWN TO THE JUMP &bull; IN AIR: &#8592; &#8594; ANGLE (land rear wheel first on the ramp) &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
-  <div id="touch">
-    <button id="btnUp">&#8593;</button>
-    <button id="btnDown">&#8595;</button>
-    <button id="btnLeft">&#8634;</button>
-    <button id="btnRight">&#8635;</button>
-  </div>
+  <div id="hint">TOP LANE: &#8593; FASTER / &#8595; SLOWER &bull; IN AIR: &#8592; &#8594; ANGLE (land rear wheel first) &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
 
 <script>
 // ---- Access gate (only when hosted; local files skip it) ----
@@ -352,6 +365,7 @@ document.getElementById("startBtn").onclick = startGame;
 //  UPDATE
 // =====================================================================
 function update() {
+  if (portraitLock) { stopEngine(); return; }   // frozen while the phone is in portrait
   game.frame++;
   for (const p of game.debris) { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; }
   game.debris = game.debris.filter(p => p.life > 0);
@@ -575,27 +589,43 @@ function draw() {
   }
 }
 
-// --- Touch ---
-function bindButton(id, code) {
-  const el = document.getElementById(id);
-  const down = e => { e.preventDefault(); initAudio();
-    if (game.state === "menu" || game.state === "over") { startGame(); return; }
-    keys[code] = true; };
+// --- Mobile controls: on-screen buttons set the same keys; pause/mute as buttons ---
+const isTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const mctl = document.getElementById("mctl");
+document.querySelectorAll(".mbtn[data-k]").forEach(el => {
+  const code = el.dataset.k;
+  const down = e => { e.preventDefault(); initAudio(); keys[code] = true; };
   const up = e => { e.preventDefault(); keys[code] = false; };
   el.addEventListener("touchstart", down, { passive: false });
   el.addEventListener("touchend", up, { passive: false });
+  el.addEventListener("touchcancel", up, { passive: false });
   el.addEventListener("mousedown", down); el.addEventListener("mouseup", up); el.addEventListener("mouseleave", up);
+});
+document.getElementById("mPause").onclick = () => { initAudio(); togglePause(); };
+const mMuteBtn = document.getElementById("mMute");
+mMuteBtn.onclick = () => { initAudio(); toggleMute(); mMuteBtn.textContent = muted ? "✕" : "♪"; };
+
+// --- Landscape lock: portrait shows a "rotate" overlay and freezes; landscape resumes ---
+let portraitLock = false;
+const rotateMsg = document.getElementById("rotateMsg");
+function checkOrientation() {
+  if (!isTouch) return;
+  portraitLock = window.innerHeight > window.innerWidth;
+  rotateMsg.style.display = portraitLock ? "flex" : "none";
+  if (portraitLock) stopEngine();
 }
-bindButton("btnUp", "ArrowUp"); bindButton("btnDown", "ArrowDown");
-bindButton("btnLeft", "ArrowLeft"); bindButton("btnRight", "ArrowRight");
-canvas.addEventListener("touchstart", e => { e.preventDefault(); initAudio();
-  if ((game.state === "menu" || game.state === "over") && lbEntry.style.display === "none") startGame();
-}, { passive: false });
-if ("ontouchstart" in window || navigator.maxTouchPoints > 0) document.getElementById("touch").style.display = "flex";
+if (isTouch) {
+  window.addEventListener("resize", checkOrientation);
+  window.addEventListener("orientationchange", checkOrientation);
+  checkOrientation();
+}
 
 renderMenuBoard();   // show local scores right away
 fetchBoard();        // pull the shared leaderboard (re-renders the menu board)
-function loop() { update(); draw(); requestAnimationFrame(loop); }
+function loop() {
+  if (isTouch) mctl.style.display = game.state === "playing" ? "block" : "none";  // controls only in play
+  update(); draw(); requestAnimationFrame(loop);
+}
 loop();
 </script>
 </body>
