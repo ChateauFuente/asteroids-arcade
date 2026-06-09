@@ -20,6 +20,11 @@ Built iteratively in a single development channel; dates reflect that work
   final approach), **more mountainous terrain**, and you can now **set down on any
   flat ground for base ×1 points** (marked pads still add their ×2–×5); slopes
   crash. Crashes throw debris.
+- **Start higher + zoomed out, wide seamless world.** Start altitude ~2.5× higher
+  and the camera starts zoomed out (broad landscape) then zooms in on descent. The
+  landscape is now a wide (2600px) field with up to ~8 pads that **scrolls
+  endlessly** — the lander flies past the old screen edge with continuous tiling
+  instead of snapping back to the left.
 
 ### Arcade
 - **Restructured into a multi-game arcade.** Root `index.html` is now a games

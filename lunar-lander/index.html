@@ -145,6 +145,8 @@ const THRUST = 0.060, BURN = 0.9, ROT = 0.045;
 const SOFT_VY = 0.5, SOFT_VX = 0.4, SOFT_ANG = 0.10;   // good landing
 const HARD_VY = 0.9, HARD_VX = 0.7, HARD_ANG = 0.22;   // rough but survivable
 const FOOT = 12;                                        // lander feet below center
+const WORLD_W = 2600;                                   // wide, seamless wrap-around landscape
+const START_ALT = 760;                                  // start high (~2.5x the old altitude)
 
 // =====================================================================
 //  SOUND
@@ -250,46 +252,51 @@ const game = {
 const cam = { x: W / 2, y: H / 2, scale: 1 };
 
 function newLander() {
-  return { x: rand(180, W - 180), y: 90, vx: rand(-0.6, 0.6), vy: 0.15, angle: 0, thrusting: false };
+  const x = rand(0, WORLD_W);
+  return { x, y: terrainYAt(x) - START_ALT, vx: rand(-0.5, 0.5), vy: 0.15, angle: 0, thrusting: false };
 }
 
-// Terrain: jagged surface across the width with 2-3 flat pads (smaller = higher mult).
+// Terrain: a wide jagged moonscape with several flat pads (smaller = higher mult).
+// It tiles seamlessly (first and last point share a height) for endless scrolling.
 function genTerrain() {
-  const pts = [{ x: 0, y: rand(420, 480) }];
+  const y0 = rand(420, 480);
+  const pts = [{ x: 0, y: y0 }];
   const pads = [];
   let x = 0;
-  while (x < W - 40) {
-    const canPad = pads.length < 3 && x > 70 && x < W - 150;
-    if (canPad && Math.random() < 0.45) {
+  while (x < WORLD_W - 80) {
+    const canPad = pads.length < 8 && x > 90 && x < WORLD_W - 220;
+    if (canPad && Math.random() < 0.34) {
       const w = Math.round(rand(34, 92));
-      const y = clamp(pts[pts.length - 1].y + rand(-20, 20), 400, 500);
+      const y = clamp(pts[pts.length - 1].y + rand(-20, 20), 400, 510);
       pts.push({ x, y });
-      const x0 = x; x = Math.min(W, x + w);
+      const x0 = x; x = Math.min(WORLD_W, x + w);
       pts.push({ x, y });
       const mult = w >= 76 ? 2 : w >= 56 ? 3 : w >= 42 ? 4 : 5;
       pads.push({ x0, x1: x, y, mult });
-      x += rand(20, 50);
+      x += rand(30, 80);
     } else {
-      x += rand(26, 60);    // narrower, taller steps = jagged mountains
+      x += rand(26, 60);    // narrow, tall steps = jagged mountains
       const ny = clamp(pts[pts.length - 1].y + rand(-95, 95), 300, 545);
-      pts.push({ x: Math.min(x, W), y: ny });
+      pts.push({ x: Math.min(x, WORLD_W), y: ny });
     }
   }
-  if (pts[pts.length - 1].x < W) pts.push({ x: W, y: rand(420, 480) });
+  pts.push({ x: WORLD_W, y: y0 });   // close the loop at the same height as the start
   return { pts, pads };
 }
+const wrapX = x => ((x % WORLD_W) + WORLD_W) % WORLD_W;
 function terrainYAt(x) {
-  const pts = game.terrain;
+  const pts = game.terrain, xm = wrapX(x);
   for (let i = 0; i < pts.length - 1; i++) {
-    if (x >= pts[i].x && x <= pts[i + 1].x) {
-      const t = (x - pts[i].x) / (pts[i + 1].x - pts[i].x || 1);
+    if (xm >= pts[i].x && xm <= pts[i + 1].x) {
+      const t = (xm - pts[i].x) / (pts[i + 1].x - pts[i].x || 1);
       return pts[i].y + t * (pts[i + 1].y - pts[i].y);
     }
   }
   return H;
 }
 function padAt(x) {
-  for (const p of game.pads) if (x >= p.x0 && x <= p.x1) return p;
+  const xm = wrapX(x);
+  for (const p of game.pads) if (xm >= p.x0 && xm <= p.x1) return p;
   return null;
 }
 
@@ -298,7 +305,7 @@ function newRound() {
   game.terrain = t.pts; game.pads = t.pads;
   game.lander = newLander();
   game.msg = ""; game.msgTimer = 0; game.crashed = false; game.particles = [];
-  cam.x = game.lander.x; cam.y = game.lander.y; cam.scale = 0.85;   // snap (no zoom jump)
+  cam.x = game.lander.x; cam.y = game.lander.y; cam.scale = 0.45;   // snap to the zoomed-out start
 }
 function spawnDebris(x, y) {
   for (let i = 0; i < 22; i++) {
@@ -401,8 +408,7 @@ function update() {
   } else stopThrust();
 
   L.vy += diff.gravity;
-  L.x += L.vx; L.y += L.vy;
-  if (L.x < -10) L.x = W + 10; if (L.x > W + 10) L.x = -10;   // wrap horizontally
+  L.x += L.vx; L.y += L.vy;   // x is unbounded; the camera follows and terrain tiles seamlessly
 
   // Contact with the surface?
   if (L.y + FOOT >= terrainYAt(L.x)) {
@@ -444,29 +450,32 @@ function updateCamera() {
   if (!game.lander) return;
   const L = game.lander;
   const alt = Math.max(0, terrainYAt(L.x) - (L.y + FOOT));
-  const target = clamp(2.2 - (alt / 400) * 1.5, 0.7, 2.2);    // high alt = zoom out (0.7), low = zoom in (2.2)
-  cam.scale += (target - cam.scale) * 0.08;                    // ease so the zoom is smooth
-  cam.x += (L.x - cam.x) * 0.12;
+  // High up = broad landscape (0.45); final approach = close-up (2.2).
+  const target = clamp(2.2 - (alt / 720) * 1.75, 0.45, 2.2);
+  cam.scale += (target - cam.scale) * 0.06;                    // ease so the zoom is smooth
+  cam.x += (L.x - cam.x) * 0.12;                               // follow freely — no wrap/clamp
   cam.y += (L.y - cam.y) * 0.12;
-  const halfW = (W / 2) / cam.scale;
-  if (halfW < W / 2) cam.x = clamp(cam.x, halfW, W - halfW);   // keep terrain on-screen when zoomed in
 }
 function drawScene() {
-  // terrain
-  ctx.strokeStyle = "#9ab"; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(game.terrain[0].x, game.terrain[0].y);
-  for (const p of game.terrain) ctx.lineTo(p.x, p.y);
-  ctx.stroke();
-  // pads (flashing) + multipliers
+  // Draw the world tiled (3 copies around the camera) so the wide landscape
+  // scrolls endlessly with no visible seam or snap-back.
   const flash = Math.floor(game.frame / 15) % 2 === 0;
-  for (const p of game.pads) {
-    ctx.strokeStyle = flash ? "#0f0" : "#0a0"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(p.x0, p.y); ctx.lineTo(p.x1, p.y); ctx.stroke();
-    ctx.fillStyle = flash ? "#0f0" : "#0a0"; ctx.font = "12px 'Courier New', monospace"; ctx.textAlign = "center";
-    ctx.fillText("x" + p.mult, (p.x0 + p.x1) / 2, p.y - 6);
+  const k0 = Math.round(cam.x / WORLD_W);
+  for (let k = k0 - 1; k <= k0 + 1; k++) {
+    const off = k * WORLD_W;
+    ctx.strokeStyle = "#9ab"; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(game.terrain[0].x + off, game.terrain[0].y);
+    for (const p of game.terrain) ctx.lineTo(p.x + off, p.y);
+    ctx.stroke();
+    for (const p of game.pads) {
+      ctx.strokeStyle = flash ? "#0f0" : "#0a0"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(p.x0 + off, p.y); ctx.lineTo(p.x1 + off, p.y); ctx.stroke();
+      ctx.fillStyle = flash ? "#0f0" : "#0a0"; ctx.font = "12px 'Courier New', monospace"; ctx.textAlign = "center";
+      ctx.fillText("x" + p.mult, (p.x0 + p.x1) / 2 + off, p.y - 6);
+    }
   }
-  // debris
+  // debris (near the lander)
   for (const p of game.particles) {
     ctx.globalAlpha = Math.max(0, p.life / p.max);
     ctx.fillStyle = "#fa0"; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);

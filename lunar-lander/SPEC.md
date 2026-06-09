@@ -74,10 +74,14 @@ By difficulty (fuel / gravity / rotation cap from vertical):
 
 ## 5. Terrain & pads
 
-- Jagged lunar surface (line segments) regenerated each round, with **2–4 flat
-  pads** of varying width.
+- A **wide** jagged lunar surface (`WORLD_W = 2600`) regenerated each round, with
+  up to **~8 flat pads** of varying width — lots of fields/options to choose from.
+- It **tiles seamlessly** (first/last point share a height) so the world scrolls
+  endlessly: the lander's x is unbounded, the camera follows, and the terrain is
+  drawn in 3 copies — no snap-back at a screen edge.
 - **Pad multiplier by width:** widest `×2`, then `×3`, `×4`, smallest `×5`
-  (smaller = harder = bigger payoff), shown flashing above each pad.
+  (smaller = harder = bigger payoff), shown flashing above each pad. You can also
+  set down on **any flat ground** for base ×1 (slopes crash).
 
 ---
 
@@ -97,9 +101,10 @@ At the moment of contact on a flat pad:
 
 ## 7. Camera / zoom
 
-Reuse the world→view transform pattern (as in Stunt Cycle's fit-to-screen): as
-altitude drops, the view **zooms in and follows** the lander for a precise final
-approach. Physics stays in fixed world coordinates; only drawing scales.
+The camera **follows the lander and zooms with altitude**. You start **high**
+(`START_ALT ≈ 760`, ~2.5× the old start) and **zoomed out** (`scale 0.45`) showing
+a broad landscape, then it **zooms in** smoothly to a close-up (`scale 2.2`) for
+the final approach. Physics stays in fixed world coordinates; only drawing scales.
 
 ---
 
