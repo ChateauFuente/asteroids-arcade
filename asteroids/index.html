@@ -168,6 +168,7 @@
       <div class="row" style="margin-top:10px;">
         <button class="over-btn" id="resumeBtn">RESUME</button>
         <button class="over-btn" id="pauseMenuBtn">MENU</button>
+        <button class="over-btn arcade-btn" id="pauseArcadeBtn">&#9664; ARCADE</button>
       </div>
     </div>
 
@@ -1203,6 +1204,7 @@ const _akey = new URLSearchParams(location.search).get("key") || "";
 const ARCADE_HREF = ".." + (_akey ? "/index.html?key=" + encodeURIComponent(_akey) : "/index.html");
 document.getElementById("arcadeLink").href = ARCADE_HREF;
 document.getElementById("arcadeBtn").onclick = () => { location.href = ARCADE_HREF; };
+document.getElementById("pauseArcadeBtn").onclick = () => { location.href = ARCADE_HREF; };
 document.getElementById("resumeBtn").onclick = resumeGame;
 document.getElementById("pauseMenuBtn").onclick = goMenu;
 

@@ -38,6 +38,19 @@
     padding: 8px 16px; font-family: inherit; font-size: 14px; letter-spacing: 1px; cursor: pointer;
   }
   #saveBtn:hover { background: #033; }
+  #pauseMenu {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: rgba(0,0,0,0.82);
+  }
+  #pauseMenu .ptitle { font-size: 40px; letter-spacing: 4px; color: #0ff; }
+  .pbtn {
+    background: #111; color: #0ff; border: 1px solid #0ff; border-radius: 8px;
+    padding: 9px 18px; font-family: inherit; font-size: 15px; letter-spacing: 1px; cursor: pointer; min-width: 150px;
+  }
+  .pbtn:hover { background: #033; }
+  .pbtn.arcade { color: #fb0; border-color: #fb0; }
+  .pbtn.arcade:hover { background: #221800; }
 </style>
 </head>
 <body>
@@ -47,6 +60,12 @@
       <div class="lbl">NEW HIGH SCORE! ENTER INITIALS</div>
       <input id="initials" maxlength="3" autocomplete="off" spellcheck="false" placeholder="AAA">
       <button id="saveBtn">SAVE</button>
+    </div>
+    <div id="pauseMenu">
+      <div class="ptitle">PAUSED</div>
+      <button class="pbtn" id="pResume">RESUME</button>
+      <button class="pbtn" id="pMenu">MENU</button>
+      <button class="pbtn arcade" id="pArcade">&#9664; ARCADE</button>
     </div>
   </div>
   <div id="hint">TOP LANE: &#8593; FASTER / &#8595; SLOWER &bull; TUBES DOWN TO THE JUMP &bull; IN AIR: &#8592; &#8594; ANGLE (land rear wheel first on the ramp) &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
@@ -255,10 +274,17 @@ document.addEventListener("keydown", e => {
   if (e.code === "KeyM") toggleMute();
 });
 document.addEventListener("keyup", e => { keys[e.code] = false; });
+// Standard pause menu: RESUME, MENU (this game's title), ARCADE.
+const pauseEl = document.getElementById("pauseMenu");
 function togglePause() {
-  if (game.state === "playing") { game.state = "paused"; stopEngine(); }
-  else if (game.state === "paused") game.state = "playing";
+  if (game.state === "playing") { game.state = "paused"; stopEngine(); pauseEl.style.display = "flex"; }
+  else if (game.state === "paused") resumeGame();
 }
+function resumeGame() { if (game.state !== "paused") return; game.state = "playing"; pauseEl.style.display = "none"; }
+function pauseToMenu() { game.state = "menu"; stopEngine(); pauseEl.style.display = "none"; }
+document.getElementById("pResume").onclick = resumeGame;
+document.getElementById("pMenu").onclick = pauseToMenu;
+document.getElementById("pArcade").onclick = () => { location.href = document.getElementById("back").href; };
 
 // =====================================================================
 //  UPDATE
@@ -454,7 +480,6 @@ function draw() {
     centerText("PRESS ENTER TO START", 18, 182);
     drawBoard(225);
   }
-  if (game.state === "paused") centerText("PAUSED  (P)", 30, H / 2);
   if (game.state === "over") {
     centerText("GAME OVER", 44, 110, "#f44");
     centerText("SCORE " + game.score, 20, 146);
