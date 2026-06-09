@@ -51,6 +51,10 @@ Built iteratively in a single development channel; dates reflect that work
   game keeps its own boards. Asteroids unaffected.
 
 ### Stunt Cycle (new)
+- **Proper HTML start menu with a START button** (fixes: couldn't start on mobile;
+  was a canvas "PRESS ENTER TO START" screen). Now matches the template — tappable
+  START + the leaderboard on the menu overlay. Added the HTML start menu to the
+  shared template too.
 - **Three-lane run-up + doubled throttle.** Added a second stacked run-up lane
   (top + middle, zig-zagging via two tubes into the jump lane) and doubled the
   throttle cap to MAX_S=30 (same fill rate). Simulation: this raises the ceiling

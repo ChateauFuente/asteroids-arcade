@@ -55,11 +55,27 @@
     position: absolute; left: 50%; top: 60%; transform: translateX(-50%);
     display: none; gap: 10px;
   }
+  #menu {
+    position: absolute; inset: 0; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: #000;
+  }
+  #menu .ptitle { font-size: 40px; letter-spacing: 4px; color: #0ff; }
+  #startBtn { font-size: 18px; padding: 11px 26px; }
+  .board { width: 300px; max-width: 84%; font-size: 15px; color: #0ff; }
+  .board .bt { color: #888; letter-spacing: 2px; font-size: 12px; text-align: center; margin-bottom: 4px; }
+  .board .br { display: flex; justify-content: space-between; padding: 1px 8px; }
+  .board .br.dim { color: #555; }
 </style>
 </head>
 <body>
   <div id="stage">
     <canvas id="game" width="800" height="600"></canvas>
+    <div id="menu">
+      <div class="ptitle">STUNT CYCLE</div>
+      <div id="menuBoard" class="board"></div>
+      <button class="pbtn" id="startBtn">START &#9654;</button>
+    </div>
     <div id="lbentry">
       <div class="lbl">NEW HIGH SCORE! ENTER INITIALS</div>
       <input id="initials" maxlength="3" autocomplete="off" spellcheck="false" placeholder="AAA">
@@ -127,7 +143,7 @@ async function fetchBoard() {
                           "&game=" + GAME_ID + "&config=" + BOARD);
     if (!r.ok) return;
     const d = await r.json();
-    if (Array.isArray(d)) { game.scores = d; saveLocalScores(); }
+    if (Array.isArray(d)) { game.scores = d; saveLocalScores(); renderMenuBoard(); }
   } catch (e) { /* offline — keep local */ }
 }
 async function postScore(initials, score) {
@@ -258,8 +274,18 @@ function resetBike() {
   game.phase = "approachA";
   game.bike = { x: LANE_LEFT, y: A_Y - WHEEL_R, vx: 0, vy: 0, angle: 0, speed: 4, face: 1 };
 }
+const menuEl = document.getElementById("menu");
+function renderMenuBoard() {
+  let html = '<div class="bt">TOP 5 SCORES</div>';
+  for (let i = 0; i < 5; i++) {
+    const e = game.scores[i];
+    if (e) html += '<div class="br"><span>' + (i+1) + '. ' + e.initials + '</span><span>' + e.score + '</span></div>';
+    else   html += '<div class="br dim"><span>' + (i+1) + '. ---</span><span>0</span></div>';
+  }
+  document.getElementById("menuBoard").innerHTML = html;
+}
 function startGame() {
-  hideEntry(); hideOverButtons();
+  menuEl.style.display = "none"; hideEntry(); hideOverButtons();
   game.state = "playing";
   game.lives = 3; game.score = 0; game.numBuses = 2;
   game.debris = []; game.crashTimer = 0; game.clearTimer = 0;
@@ -299,7 +325,7 @@ function togglePause() {
   else if (game.state === "paused") resumeGame();
 }
 function resumeGame() { if (game.state !== "paused") return; game.state = "playing"; pauseEl.style.display = "none"; }
-function goToTitle() { game.state = "menu"; stopEngine(); pauseEl.style.display = "none"; hideEntry(); hideOverButtons(); }
+function goToTitle() { game.state = "menu"; stopEngine(); pauseEl.style.display = "none"; hideEntry(); hideOverButtons(); menuEl.style.display = "flex"; renderMenuBoard(); }
 const ARCADE_HREF = document.getElementById("back").href;
 document.getElementById("pResume").onclick = resumeGame;
 document.getElementById("pMenu").onclick = goToTitle;
@@ -312,6 +338,7 @@ function hideOverButtons() { overBtns.style.display = "none"; }
 document.getElementById("oAgain").onclick = startGame;
 document.getElementById("oMenu").onclick = goToTitle;
 document.getElementById("oArcade").onclick = () => { location.href = ARCADE_HREF; };
+document.getElementById("startBtn").onclick = startGame;
 
 // =====================================================================
 //  UPDATE
@@ -528,11 +555,7 @@ function draw() {
     if (game.crashTimer > 0) centerText("CRASH!", 36, 120, "#f44");
   }
 
-  if (game.state === "menu") {
-    centerText("STUNT CYCLE", 44, 140, "#0ff");
-    centerText("PRESS ENTER TO START", 18, 182);
-    drawBoard(225);
-  }
+  // (menu is the HTML #menu overlay — nothing drawn on the canvas for it)
   if (game.state === "over") {
     // Opaque: fill black so the run-up lanes don't show through, then a dialog frame.
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
@@ -562,7 +585,8 @@ canvas.addEventListener("touchstart", e => { e.preventDefault(); initAudio();
 }, { passive: false });
 if ("ontouchstart" in window || navigator.maxTouchPoints > 0) document.getElementById("touch").style.display = "flex";
 
-fetchBoard();   // pull the shared leaderboard on load
+renderMenuBoard();   // show local scores right away
+fetchBoard();        // pull the shared leaderboard (re-renders the menu board)
 function loop() { update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
