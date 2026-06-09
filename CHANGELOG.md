@@ -90,6 +90,10 @@ Built iteratively in a single development channel; dates reflect that work
   exists at every bus count.
 
 ### Arcade / navigation
+- **Landscape + portrait support (all games).** The 4:3 canvas now fits within
+  both the screen width and height (`min(100vw, 80vh·4/3)`), so it works in either
+  orientation and re-fits automatically when you rotate the phone mid-game; a
+  short-screen media query shrinks the controls to fit in landscape.
 - **Standard pause menu in every game:** RESUME · MENU (game's own title) · ◀ ARCADE.
   Asteroids' pause gained the ARCADE button; Stunt Cycle's pause went from
   resume-only to the full menu. Codified as the shared game template.
