@@ -49,6 +49,11 @@
       <div class="desc">1970s Atari wireframe bus-jump. Build speed, clear the buses, stick the landing.</div>
       <div class="play">&#9654; PLAY</div>
     </a>
+    <a class="game" id="lnk-lunar" href="#">
+      <div class="name">LUNAR LANDER</div>
+      <div class="desc">1979 Atari vector classic. Fight gravity, manage fuel, set down soft &amp; upright on a pad.</div>
+      <div class="play">&#9654; PLAY</div>
+    </a>
   </div>
   <div class="foot">More games coming. Built as a sandbox arcade.</div>
 </div>
@@ -71,6 +76,7 @@ if (hosted && key !== ACCESS_KEY) {
   const suffix = key ? ("?key=" + encodeURIComponent(key)) : "";
   document.getElementById("lnk-asteroids").href = "asteroids/index.html" + suffix;
   document.getElementById("lnk-stunt").href = "stunt-cycle/index.html" + suffix;
+  document.getElementById("lnk-lunar").href = "lunar-lander/index.html" + suffix;
   document.getElementById("arcade").style.display = "block";
 }
 </script>

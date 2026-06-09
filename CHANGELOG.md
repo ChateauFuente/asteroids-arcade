@@ -5,6 +5,18 @@ Built iteratively in a single development channel; dates reflect that work
 (2026-06-08). Per-game design details live in each game's `SPEC.md`.
 
 ## [Unreleased]
+### Lunar Lander (new)
+- **Third game added.** Wireframe homage to Atari's 1979 Lunar Lander: fight
+  gravity and momentum, manage limited fuel, and set down soft & upright on a
+  flashing pad (smaller pads = higher ×2–×5 multiplier). Soft landings refuel;
+  game over when the tank's dry.
+- **Three difficulties** (Novice / Intermediate / Expert, default Intermediate)
+  differing by start fuel, gravity, and rotation cap (±90° / ±135° / full 360°),
+  each with its **own shared D1 leaderboard**. HUD shows altitude, H/V speed
+  (red when too hot), fuel, score. Physics verified fair by simulation.
+- Added to the arcade menu; follows the full template (pause/game-over/controls/
+  style/leaderboard).
+
 ### Arcade
 - **Restructured into a multi-game arcade.** Root `index.html` is now a games
   menu; Asteroids moved to `asteroids/`, and a new **Stunt Cycle** game added in

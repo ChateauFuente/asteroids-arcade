@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Lunar Lander</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; background: #000; color: #fff;
+    font-family: "Courier New", monospace;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    -webkit-user-select: none; user-select: none;
+  }
+  #stage { position: relative; width: 800px; max-width: 100vw; }
+  canvas { display: block; width: 100%; height: auto; border: 1px solid #333; background: #000; touch-action: none; }
+  #hint { margin-top: 12px; font-size: 12px; color: #888; letter-spacing: 1px; text-align: center; }
+  #back, #hint a { color: #fb0; text-decoration: none; }
+  #hint a:hover, #back:hover { text-decoration: underline; }
+
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: rgba(0,0,0,0.82); padding: 18px; box-sizing: border-box; overflow: auto;
+  }
+  .overlay h1 { font-size: 40px; letter-spacing: 6px; margin: 0; color: #cdf; }
+  .group-label { font-size: 12px; color: #888; letter-spacing: 2px; }
+  .seg { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .seg button, .pbtn, #startBtn {
+    background: #111; color: #0ff; border: 1px solid #0ff; border-radius: 8px;
+    padding: 9px 16px; font-family: inherit; font-size: 14px; letter-spacing: 1px; cursor: pointer;
+  }
+  .seg button.sel { background: #0ff; color: #000; font-weight: bold; }
+  .seg button:hover, .pbtn:hover, #startBtn:hover { background: #033; }
+  .seg button.sel:hover { background: #0ff; }
+  #startBtn { font-size: 18px; padding: 10px 24px; }
+  .pbtn { min-width: 150px; }
+  .pbtn.arcade { color: #fb0; border-color: #fb0; }
+  .pbtn.arcade:hover { background: #221800; }
+  .ptitle { font-size: 40px; letter-spacing: 4px; color: #0ff; }
+
+  .board { width: 320px; max-width: 86%; font-size: 14px; color: #0ff; }
+  .board-title { color: #888; letter-spacing: 2px; font-size: 12px; text-align: center; margin-bottom: 3px; }
+  .board-row { display: flex; justify-content: space-between; padding: 1px 8px; }
+  .board-row.dim { color: #555; }
+
+  #initialsEntry { display: none; flex-direction: column; align-items: center; gap: 8px; }
+  #initials {
+    width: 120px; text-align: center; font-family: inherit; font-size: 28px;
+    letter-spacing: 10px; text-indent: 10px; text-transform: uppercase;
+    background: #001; color: #0ff; border: 1px solid #0ff; border-radius: 6px; padding: 6px 0;
+  }
+  #touch { display: none; gap: 10px; margin-top: 14px; }
+  #touch button {
+    width: 70px; height: 60px; border-radius: 12px; background: #111; color: #0ff;
+    border: 1px solid #0ff; font-size: 20px; touch-action: none;
+  }
+  #touch button:active { background: #033; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="800" height="600"></canvas>
+
+    <!-- MENU -->
+    <div id="menu" class="overlay" style="display:flex;">
+      <h1>LUNAR LANDER</h1>
+      <div class="group-label">DIFFICULTY</div>
+      <div class="seg" id="diffs">
+        <button data-d="novice">NOVICE</button>
+        <button data-d="intermediate" class="sel">INTERMEDIATE</button>
+        <button data-d="expert">EXPERT</button>
+      </div>
+      <div id="menuBoard" class="board"></div>
+      <button id="startBtn">START &#9654;</button>
+    </div>
+
+    <!-- PAUSE -->
+    <div id="pauseMenu" class="overlay">
+      <div class="ptitle">PAUSED</div>
+      <button class="pbtn" id="pResume">RESUME</button>
+      <button class="pbtn" id="pMenu">MENU</button>
+      <button class="pbtn arcade" id="pArcade">&#9664; ARCADE</button>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="overMenu" class="overlay">
+      <div class="ptitle" style="color:#f44;">OUT OF FUEL</div>
+      <div id="overScore" style="font-size:18px;">SCORE 0</div>
+      <div id="initialsEntry">
+        <div style="color:#ff0; font-size:14px;">NEW HIGH SCORE! ENTER INITIALS</div>
+        <input id="initials" maxlength="3" autocomplete="off" spellcheck="false" placeholder="AAA">
+        <button class="pbtn" id="saveBtn" style="min-width:0;">SAVE</button>
+      </div>
+      <div id="overBoard" class="board"></div>
+      <div class="seg">
+        <button class="pbtn" id="oAgain">PLAY AGAIN</button>
+        <button class="pbtn" id="oMenu">MENU</button>
+        <button class="pbtn arcade" id="oArcade">&#9664; ARCADE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint">&#8592; &#8594; ROTATE &bull; &#8593; / SPACE THRUST &bull; LAND SOFT &amp; UPRIGHT ON A PAD &bull; P PAUSE &bull; M MUTE &bull; <a id="back" href="#">&#9664; ARCADE</a></div>
+  <div id="touch">
+    <button id="btnLeft">&#8634;</button>
+    <button id="btnThrust">&#9650;</button>
+    <button id="btnRight">&#8635;</button>
+  </div>
+
+<script>
+// ---- Access gate (only when hosted; local files skip it) ----
+const ACCESS_KEY = "arcade-3f9k2x7q";
+const _params = new URLSearchParams(location.search);
+const _key = _params.get("key") || "";
+const _hosted = location.protocol.indexOf("http") === 0 &&
+                location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
+if (_hosted && _key !== ACCESS_KEY) {
+  document.body.innerHTML =
+    '<div style="color:#0ff;font-family:monospace;text-align:center;padding-top:28vh;font-size:18px;line-height:1.6;">' +
+    '&#128274; This game is private.<br><br>You need the full link (with its access key) to play.</div>';
+  throw new Error("Lunar Lander: access key required");
+}
+document.getElementById("back").href = ".." + (_key ? "/index.html?key=" + encodeURIComponent(_key) : "/index.html");
+const ARCADE_HREF = document.getElementById("back").href;
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const rand = (a, b) => Math.random() * (b - a) + a;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// =====================================================================
+//  DIFFICULTY
+// =====================================================================
+const DIFFS = {
+  novice:       { label: "NOVICE",       fuel: 1000, gravity: 0.018, rotCap: Math.PI / 2 },       // ±90°
+  intermediate: { label: "INTERMEDIATE", fuel: 750,  gravity: 0.025, rotCap: 3 * Math.PI / 4 },   // ±135°
+  expert:       { label: "EXPERT",       fuel: 550,  gravity: 0.033, rotCap: Infinity },          // full
+};
+const settings = { difficulty: "intermediate" };
+
+// --- Physics constants ---
+const THRUST = 0.060, BURN = 0.9, ROT = 0.045;
+const SOFT_VY = 0.5, SOFT_VX = 0.4, SOFT_ANG = 0.10;   // good landing
+const HARD_VY = 0.9, HARD_VX = 0.7, HARD_ANG = 0.22;   // rough but survivable
+const FOOT = 12;                                        // lander feet below center
+
+// =====================================================================
+//  SOUND
+// =====================================================================
+let actx = null, master = null, muted = false;
+function initAudio() {
+  if (!actx) { actx = new (window.AudioContext || window.webkitAudioContext)();
+    master = actx.createGain(); master.gain.value = muted ? 0 : 1; master.connect(actx.destination); }
+  if (actx.state === "suspended") actx.resume();
+}
+function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 1; }
+function tone(freq, dur, type = "square", vol = 0.15, delay = 0) {
+  if (!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq; o.connect(g); g.connect(master);
+  const t = actx.currentTime + delay;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.start(t); o.stop(t + dur);
+}
+function noise(dur = 0.4, vol = 0.4, cut = 800) {
+  if (!actx) return;
+  const n = Math.floor(actx.sampleRate * dur);
+  const buf = actx.createBuffer(1, n, actx.sampleRate); const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const s = actx.createBufferSource(); s.buffer = buf;
+  const f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = cut;
+  const g = actx.createGain(); g.gain.setValueAtTime(vol, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start();
+}
+let thrustNode = null;
+function startThrust() {
+  if (!actx || thrustNode) return;
+  const size = actx.sampleRate; const buffer = actx.createBuffer(1, size, actx.sampleRate);
+  const data = buffer.getChannelData(0); for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+  const src = actx.createBufferSource(); src.buffer = buffer; src.loop = true;
+  const filter = actx.createBiquadFilter(); filter.type = "lowpass"; filter.frequency.value = 380;
+  const g = actx.createGain(); g.gain.value = 0.16;
+  src.connect(filter); filter.connect(g); g.connect(master); src.start();
+  thrustNode = { src };
+}
+function stopThrust() { if (thrustNode) { thrustNode.src.stop(); thrustNode.src.disconnect(); thrustNode = null; } }
+function sndLand() { tone(523, 0.12, "square", 0.18); tone(784, 0.18, "square", 0.18, 0.12); }
+function sndCrash() { stopThrust(); noise(0.7, 0.5, 700); tone(80, 0.5, "square", 0.16); }
+
+// =====================================================================
+//  LEADERBOARD (shared D1, per difficulty)
+// =====================================================================
+const LEADERBOARD_API = "https://arcade-api.dave-zoellner-us.workers.dev";
+const GAME_ID = "lunar-lander";
+const REMOTE_BOARD = LEADERBOARD_API.length > 0;
+function loadLocal() { try { return JSON.parse(localStorage.getItem("lunarLanderScores")) || {}; } catch (e) { return {}; } }
+function saveLocal() { localStorage.setItem("lunarLanderScores", JSON.stringify(game.boards)); }
+function boardOf(diff) { if (!game.boards[diff]) game.boards[diff] = []; return game.boards[diff]; }
+function qualifies(score, diff) {
+  if (score <= 0) return false;
+  const b = boardOf(diff);
+  if (b.length < 5) return true;
+  return score > b[b.length - 1].score;
+}
+function addScoreLocal(diff, initials, score) {
+  const b = boardOf(diff);
+  b.push({ initials, score });
+  b.sort((a, b) => b.score - a.score);
+  game.boards[diff] = b.slice(0, 5);
+  saveLocal();
+}
+async function fetchBoard(diff) {
+  if (!REMOTE_BOARD) return;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY) + "&game=" + GAME_ID + "&config=" + diff);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (Array.isArray(d)) { game.boards[diff] = d; saveLocal(); renderBoards(); }
+  } catch (e) {}
+}
+async function postScore(diff, initials, score) {
+  if (!REMOTE_BOARD) return false;
+  try {
+    const r = await fetch(LEADERBOARD_API + "/scores?key=" + encodeURIComponent(ACCESS_KEY), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game: GAME_ID, config: diff, initials, score }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+// =====================================================================
+//  GAME STATE
+// =====================================================================
+const game = {
+  state: "menu",        // menu | playing | paused | over
+  score: 0, fuel: 0,
+  terrain: null, pads: null,
+  lander: null,
+  msg: "", msgColor: "#0ff", msgTimer: 0,   // landing/crash banner + freeze
+  playedDiff: "intermediate",
+  boards: loadLocal(),
+  frame: 0,
+};
+
+function newLander() {
+  return { x: rand(180, W - 180), y: 90, vx: rand(-0.6, 0.6), vy: 0.15, angle: 0, thrusting: false };
+}
+
+// Terrain: jagged surface across the width with 2-3 flat pads (smaller = higher mult).
+function genTerrain() {
+  const pts = [{ x: 0, y: rand(420, 480) }];
+  const pads = [];
+  let x = 0;
+  while (x < W - 40) {
+    const canPad = pads.length < 3 && x > 70 && x < W - 150;
+    if (canPad && Math.random() < 0.45) {
+      const w = Math.round(rand(34, 92));
+      const y = clamp(pts[pts.length - 1].y + rand(-20, 20), 400, 500);
+      pts.push({ x, y });
+      const x0 = x; x = Math.min(W, x + w);
+      pts.push({ x, y });
+      const mult = w >= 76 ? 2 : w >= 56 ? 3 : w >= 42 ? 4 : 5;
+      pads.push({ x0, x1: x, y, mult });
+      x += rand(20, 50);
+    } else {
+      x += rand(36, 78);
+      const ny = clamp(pts[pts.length - 1].y + rand(-55, 55), 360, 520);
+      pts.push({ x: Math.min(x, W), y: ny });
+    }
+  }
+  if (pts[pts.length - 1].x < W) pts.push({ x: W, y: rand(420, 480) });
+  return { pts, pads };
+}
+function terrainYAt(x) {
+  const pts = game.terrain;
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (x >= pts[i].x && x <= pts[i + 1].x) {
+      const t = (x - pts[i].x) / (pts[i + 1].x - pts[i].x || 1);
+      return pts[i].y + t * (pts[i + 1].y - pts[i].y);
+    }
+  }
+  return H;
+}
+function padAt(x) {
+  for (const p of game.pads) if (x >= p.x0 && x <= p.x1) return p;
+  return null;
+}
+
+function newRound() {
+  const t = genTerrain();
+  game.terrain = t.pts; game.pads = t.pads;
+  game.lander = newLander();
+  game.msg = ""; game.msgTimer = 0;
+}
+function startGame() {
+  hideOverlays();
+  settings.difficulty = settings.difficulty;   // (locked in)
+  game.playedDiff = settings.difficulty;
+  game.state = "playing";
+  game.score = 0;
+  game.fuel = DIFFS[settings.difficulty].fuel;
+  newRound();
+}
+
+// Resolve a touchdown.
+function resolveContact() {
+  const L = game.lander, diff = DIFFS[settings.difficulty];
+  const pad = padAt(L.x);
+  const onPad = pad && L.x > pad.x0 + 4 && L.x < pad.x1 - 4;
+  const a = ((L.angle % (Math.PI * 2)) + Math.PI * 3) % (Math.PI * 2) - Math.PI;  // normalize to -pi..pi
+  const upright = Math.abs(a);
+  const slow = Math.abs(L.vy) <= HARD_VY && Math.abs(L.vx) <= HARD_VX && upright <= HARD_ANG;
+  const soft = Math.abs(L.vy) <= SOFT_VY && Math.abs(L.vx) <= SOFT_VX && upright <= SOFT_ANG;
+  stopThrust();
+  if (onPad && soft) {
+    const pts = pad.mult * 100;
+    game.score += pts; game.fuel += 40 + pad.mult * 20;   // soft landing refuels
+    game.msg = "GOOD LANDING  x" + pad.mult + "  +" + pts; game.msgColor = "#0ff";
+    sndLand();
+  } else if (onPad && slow) {
+    const pts = pad.mult * 30;
+    game.score += pts; game.fuel += pad.mult * 6;
+    game.msg = "ROUGH LANDING  +" + pts; game.msgColor = "#ff0";
+    sndLand();
+  } else {
+    game.msg = "CRASH"; game.msgColor = "#f44";
+    sndCrash();
+  }
+  game.msgTimer = 100;
+}
+function afterBanner() {
+  if (game.fuel <= 0) endGame();
+  else newRound();
+}
+function endGame() {
+  game.state = "over"; stopThrust();
+  document.getElementById("overScore").textContent = "SCORE " + game.score;
+  (async () => {
+    await fetchBoard(game.playedDiff);
+    if (qualifies(game.score, game.playedDiff)) showEntry(); else showOverButtons();
+  })();
+  renderBoards();
+  overEl.style.display = "flex";
+}
+
+// =====================================================================
+//  INPUT
+// =====================================================================
+const keys = {};
+document.addEventListener("keydown", e => {
+  if (e.target && e.target.tagName === "INPUT") return;
+  initAudio();
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  if (e.code === "Enter" && (game.state === "menu" || game.state === "over")) startGame();
+  if (e.code === "KeyP" || e.code === "Escape") togglePause();
+  if (e.code === "KeyM") toggleMute();
+});
+document.addEventListener("keyup", e => { keys[e.code] = false; });
+
+// =====================================================================
+//  UPDATE
+// =====================================================================
+function update() {
+  game.frame++;
+  if (game.state !== "playing") { stopThrust(); return; }
+  const L = game.lander, diff = DIFFS[settings.difficulty];
+
+  if (game.msgTimer > 0) { stopThrust(); if (--game.msgTimer === 0) afterBanner(); return; }
+
+  if (keys["ArrowLeft"])  L.angle -= ROT;
+  if (keys["ArrowRight"]) L.angle += ROT;
+  if (diff.rotCap !== Infinity) L.angle = clamp(L.angle, -diff.rotCap, diff.rotCap);
+
+  L.thrusting = (keys["ArrowUp"] || keys["Space"]) && game.fuel > 0;
+  if (L.thrusting) {
+    L.vx += Math.sin(L.angle) * THRUST;
+    L.vy += -Math.cos(L.angle) * THRUST;
+    game.fuel = Math.max(0, game.fuel - BURN);
+    startThrust();
+  } else stopThrust();
+
+  L.vy += diff.gravity;
+  L.x += L.vx; L.y += L.vy;
+  if (L.x < -10) L.x = W + 10; if (L.x > W + 10) L.x = -10;   // wrap horizontally
+
+  // Contact with the surface?
+  if (L.y + FOOT >= terrainYAt(L.x)) {
+    L.y = terrainYAt(L.x) - FOOT;
+    resolveContact();
+  }
+}
+
+// =====================================================================
+//  DRAW
+// =====================================================================
+function drawLander(x, y, angle, thrusting, ghost) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(angle);
+  ctx.strokeStyle = ghost ? "#577" : "#fff"; ctx.lineWidth = 2;
+  // ascent stage (body)
+  ctx.beginPath();
+  ctx.moveTo(-7, -4); ctx.lineTo(7, -4); ctx.lineTo(9, 4); ctx.lineTo(-9, 4); ctx.closePath();
+  ctx.moveTo(-5, -4); ctx.lineTo(-3, -10); ctx.lineTo(3, -10); ctx.lineTo(5, -4);  // cabin
+  ctx.stroke();
+  // legs
+  ctx.beginPath();
+  ctx.moveTo(-7, 4); ctx.lineTo(-12, 12); ctx.moveTo(7, 4); ctx.lineTo(12, 12);
+  ctx.moveTo(-14, 12); ctx.lineTo(-10, 12); ctx.moveTo(14, 12); ctx.lineTo(10, 12);  // feet
+  ctx.stroke();
+  // thruster flame
+  if (thrusting) {
+    ctx.strokeStyle = "#f80";
+    ctx.beginPath();
+    ctx.moveTo(-3, 4); ctx.lineTo(0, 4 + rand(8, 16)); ctx.lineTo(3, 4); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawScene() {
+  // stars
+  ctx.fillStyle = "#234";
+  for (let i = 0; i < 40; i++) {
+    const sx = (i * 197) % W, sy = (i * 113) % 340;
+    ctx.fillRect(sx, sy, 1, 1);
+  }
+  // terrain
+  ctx.strokeStyle = "#9ab"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(game.terrain[0].x, game.terrain[0].y);
+  for (const p of game.terrain) ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+  // pads (flashing) + multipliers
+  const flash = Math.floor(game.frame / 15) % 2 === 0;
+  for (const p of game.pads) {
+    ctx.strokeStyle = flash ? "#0f0" : "#0a0"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(p.x0, p.y); ctx.lineTo(p.x1, p.y); ctx.stroke();
+    ctx.fillStyle = flash ? "#0f0" : "#0a0"; ctx.font = "12px 'Courier New', monospace"; ctx.textAlign = "center";
+    ctx.fillText("x" + p.mult, (p.x0 + p.x1) / 2, p.y - 6);
+  }
+}
+function hud() {
+  const L = game.lander;
+  const alt = Math.max(0, Math.round(terrainYAt(L.x) - (L.y + FOOT)));
+  const hs = (L.vx).toFixed(2), vs = (-L.vy).toFixed(2);   // vs: + = descending shown as down
+  ctx.font = "15px 'Courier New', monospace"; ctx.textAlign = "left";
+  ctx.fillStyle = "#fff"; ctx.fillText("SCORE " + game.score, 16, 24);
+  ctx.fillStyle = game.fuel < 80 ? "#f44" : "#fff"; ctx.fillText("FUEL " + Math.round(game.fuel), 16, 46);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#fff"; ctx.fillText("ALT " + alt, W - 16, 24);
+  ctx.fillStyle = Math.abs(L.vx) > SOFT_VX ? "#f44" : "#0f0"; ctx.fillText("H-SPD " + hs, W - 16, 46);
+  ctx.fillStyle = Math.abs(L.vy) > SOFT_VY ? "#f44" : "#0f0"; ctx.fillText("V-SPD " + (-L.vy).toFixed(2), W - 16, 68);
+}
+function centerText(t, size, y, color) {
+  ctx.fillStyle = color; ctx.font = size + "px 'Courier New', monospace"; ctx.textAlign = "center";
+  ctx.fillText(t, W / 2, y);
+}
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  if (game.state === "menu") return;   // overlay handles the menu
+  drawScene();
+  if (game.msgTimer === 0 || game.msg !== "CRASH") drawLander(game.lander.x, game.lander.y, game.lander.angle, game.lander.thrusting);
+  hud();
+  if (game.msgTimer > 0) centerText(game.msg, 30, 160, game.msgColor);
+}
+
+// =====================================================================
+//  OVERLAYS / MENU WIRING
+// =====================================================================
+const menuEl = document.getElementById("menu");
+const pauseEl = document.getElementById("pauseMenu");
+const overEl = document.getElementById("overMenu");
+const menuBoard = document.getElementById("menuBoard");
+const overBoard = document.getElementById("overBoard");
+const initialsEl = document.getElementById("initials");
+
+function hideOverlays() { menuEl.style.display = "none"; pauseEl.style.display = "none"; overEl.style.display = "none"; hideEntry(); }
+function boardHTML(diff) {
+  const list = game.boards[diff] || [];
+  let html = '<div class="board-title">TOP 5 &mdash; ' + DIFFS[diff].label + '</div>';
+  for (let i = 0; i < 5; i++) {
+    const e = list[i];
+    if (e) html += '<div class="board-row"><span>' + (i+1) + '. ' + e.initials + '</span><span>' + e.score + '</span></div>';
+    else   html += '<div class="board-row dim"><span>' + (i+1) + '. ---</span><span>0</span></div>';
+  }
+  return html;
+}
+function renderBoards() {
+  menuBoard.innerHTML = boardHTML(settings.difficulty);
+  overBoard.innerHTML = boardHTML(game.playedDiff);
+}
+
+// Difficulty selector
+document.querySelectorAll("#diffs button").forEach(b => b.onclick = () => {
+  settings.difficulty = b.dataset.d;
+  document.querySelectorAll("#diffs button").forEach(x => x.classList.toggle("sel", x.dataset.d === settings.difficulty));
+  renderBoards();
+  fetchBoard(settings.difficulty);
+});
+
+// Pause
+function togglePause() {
+  if (game.state === "playing") { game.state = "paused"; stopThrust(); pauseEl.style.display = "flex"; }
+  else if (game.state === "paused") resumeGame();
+}
+function resumeGame() { if (game.state !== "paused") return; game.state = "playing"; pauseEl.style.display = "none"; }
+function goToTitle() { game.state = "menu"; stopThrust(); hideOverlays(); menuEl.style.display = "flex"; renderBoards(); }
+document.getElementById("pResume").onclick = resumeGame;
+document.getElementById("pMenu").onclick = goToTitle;
+document.getElementById("pArcade").onclick = () => { location.href = ARCADE_HREF; };
+
+// Game over
+const overBtnsRow = overEl.querySelector(".seg");
+const overEntry = document.getElementById("initialsEntry");
+function showEntry() { overEntry.style.display = "flex"; overBtnsRow.style.display = "none"; initialsEl.value = ""; setTimeout(() => initialsEl.focus(), 50); }
+function hideEntry() { overEntry.style.display = "none"; }
+function showOverButtons() { overBtnsRow.style.display = "flex"; }
+async function submitInitials() {
+  let v = (initialsEl.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "AAA";
+  addScoreLocal(game.playedDiff, v, game.score);
+  hideEntry(); showOverButtons(); renderBoards();
+  if (await postScore(game.playedDiff, v, game.score)) await fetchBoard(game.playedDiff);
+}
+initialsEl.addEventListener("input", () => { initialsEl.value = initialsEl.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3); });
+initialsEl.addEventListener("keydown", e => { e.stopPropagation(); if (e.code === "Enter") { e.preventDefault(); submitInitials(); } });
+document.getElementById("saveBtn").onclick = submitInitials;
+document.getElementById("startBtn").onclick = startGame;
+document.getElementById("oAgain").onclick = startGame;
+document.getElementById("oMenu").onclick = goToTitle;
+document.getElementById("oArcade").onclick = () => { location.href = ARCADE_HREF; };
+
+// Touch
+function bindButton(id, code) {
+  const el = document.getElementById(id);
+  const down = e => { e.preventDefault(); initAudio(); if (game.state === "menu" || game.state === "over") { startGame(); return; } keys[code] = true; };
+  const up = e => { e.preventDefault(); keys[code] = false; };
+  el.addEventListener("touchstart", down, { passive: false });
+  el.addEventListener("touchend", up, { passive: false });
+  el.addEventListener("mousedown", down); el.addEventListener("mouseup", up); el.addEventListener("mouseleave", up);
+}
+bindButton("btnLeft", "ArrowLeft"); bindButton("btnRight", "ArrowRight"); bindButton("btnThrust", "ArrowUp");
+if ("ontouchstart" in window || navigator.maxTouchPoints > 0) document.getElementById("touch").style.display = "flex";
+
+// =====================================================================
+//  BOOT
+// =====================================================================
+renderBoards();
+fetchBoard(settings.difficulty);
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
