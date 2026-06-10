@@ -13,9 +13,9 @@ cloud board), authentic synthesized arcade sound, and a full start menu. Runs in
 any modern browser with no build step. Hosted on GitHub Pages, with an optional
 Cloudflare D1 backend for global high scores.
 
-- **Live (key-gated):** https://chateaufuente.github.io/asteroids-arcade/asteroids/index.html?key=arcade-3f9k2x7q
+- **Live (key-gated):** https://chateaufuente.github.io/daves-arcade/asteroids/index.html?key=arcade-3f9k2x7q
   (reached from the arcade menu at the repo root, which passes the key through)
-- **Repo:** https://github.com/ChateauFuente/asteroids-arcade — this game lives in `asteroids/`
+- **Repo:** https://github.com/ChateauFuente/daves-arcade — this game lives in `asteroids/`
 
 ---
 
@@ -158,7 +158,7 @@ api/                  Cloudflare backend (shared, deployed separately):
   README.md             Backend deploy guide.
 ```
 
-**Hosting:** front-end = GitHub Pages (`ChateauFuente/asteroids-arcade`).
+**Hosting:** front-end = GitHub Pages (`ChateauFuente/daves-arcade`).
 Backend = Cloudflare Worker `arcade-api`
 (https://arcade-api.dave-zoellner-us.workers.dev) + D1 `arcade_leaderboard`,
 in account dave.zoellner.us@gmail.com. Fully isolated from other projects.

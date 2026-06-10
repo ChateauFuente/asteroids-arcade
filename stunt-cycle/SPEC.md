@@ -12,7 +12,7 @@ platforms connected by tubes. Single self-contained HTML file
 (`stunt-cycle/index.html`), Canvas + vanilla JS, no build step. Black /
 teal-cyan / monospace, matching the arcade.
 
-- **Live (key-gated):** https://chateaufuente.github.io/asteroids-arcade/stunt-cycle/index.html?key=arcade-3f9k2x7q
+- **Live (key-gated):** https://chateaufuente.github.io/daves-arcade/stunt-cycle/index.html?key=arcade-3f9k2x7q
 - Reached from the arcade menu, which passes the key through automatically.
 
 ---

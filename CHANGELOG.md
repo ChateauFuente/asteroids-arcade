@@ -40,6 +40,12 @@ Built iteratively in a single development channel; dates reflect that work
   old curve that zoomed in too fast and lost the landscape.
 
 ### Arcade
+- **Renamed the repo/URL `asteroids-arcade` → `daves-arcade`** to keep a
+  trademarked name out of the shareable link. New URL:
+  `https://chateaufuente.github.io/daves-arcade/?key=arcade-3f9k2x7q`. No code
+  changes were needed (all in-app links are relative; the leaderboard API keys
+  off the unchanged origin host, not the path). GitHub 301-redirects the old
+  URL. The Asteroids game folder/title are intentionally unchanged.
 - **Restructured into a multi-game arcade.** Root `index.html` is now a games
   menu; Asteroids moved to `asteroids/`, and a new **Stunt Cycle** game added in
   `stunt-cycle/`. The menu gates with the access key and passes it to each game.
