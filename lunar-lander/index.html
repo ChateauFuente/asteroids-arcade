@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="robots" content="noindex, nofollow, noarchive">
+<!-- Run fullscreen (no browser URL bar) when added to the iPhone/Android home screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
 <title>Lunar Lander</title>
 <style>
   html, body {
@@ -54,23 +59,32 @@
     letter-spacing: 10px; text-indent: 10px; text-transform: uppercase;
     background: #001; color: #0ff; border: 1px solid #0ff; border-radius: 6px; padding: 6px 0;
   }
-  /* ---- Mobile controls: overlay the canvas in thumb zones ---- */
+  /* ---- Mobile controls: FIXED to the screen edges, OUTSIDE the canvas ----
+     The 4:3 canvas is centered, leaving side gutters in landscape; the buttons
+     live in those gutters so they never cover the play area or the HUD.
+     Safe-area insets keep them clear of the iPhone notch. */
   #mctl { display: none; }
   .mbtn {
-    position: absolute; z-index: 2; touch-action: none; -webkit-user-select: none; user-select: none;
-    background: rgba(8,18,18,0.42); border: 1.5px solid #0ff; color: #0ff;
+    position: fixed; z-index: 6; touch-action: none; -webkit-user-select: none; user-select: none;
+    background: rgba(8,18,18,0.55); border: 1.5px solid #0ff; color: #0ff;
     border-radius: 12px; font-size: 22px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
   }
-  .mbtn:active { background: rgba(0,110,110,0.6); }
-  .mbtn.on { background: rgba(0,150,150,0.7); }
+  .mbtn:active { background: rgba(0,110,110,0.7); }
+  .mbtn.on { background: rgba(0,150,150,0.8); }
   .mbtn.amber { border-color: #fb0; color: #fb0; }
   .mbtn .lbl { position: absolute; bottom: 3px; font-size: 8px; letter-spacing: 1px; }
-  .topbtn { top: 8px; width: 54px; height: 34px; font-size: 13px; }
-  #mPause { left: 8px; } #mMute { right: 8px; }
-  .act { width: 64px; height: 58px; }
-  .L1 { left: 12px; bottom: 14px; } .L2 { left: 88px; bottom: 14px; }
-  .R1 { right: 12px; bottom: 14px; } .R2 { right: 88px; bottom: 14px; } .R3 { right: 12px; bottom: 86px; }
+  .topbtn { top: calc(env(safe-area-inset-top) + 6px); width: 54px; height: 34px; font-size: 13px; }
+  #mPause { left: calc(env(safe-area-inset-left) + 8px); }
+  #mMute  { right: calc(env(safe-area-inset-right) + 8px); }
+  .act { width: 62px; height: 56px; }
+  /* Left gutter column: rotate-left (bottom), thrust above it */
+  .L1 { left: calc(env(safe-area-inset-left) + 8px); bottom: 16px; }
+  .L2 { left: calc(env(safe-area-inset-left) + 8px); bottom: 82px; }
+  /* Right gutter column: rotate-right (bottom), thrust above it */
+  .R1 { right: calc(env(safe-area-inset-right) + 8px); bottom: 16px; }
+  .R2 { right: calc(env(safe-area-inset-right) + 8px); bottom: 82px; }
+  .R3 { right: calc(env(safe-area-inset-right) + 8px); bottom: 148px; }
   #rotateMsg {
     position: absolute; inset: 0; z-index: 9; display: none;
     flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -345,7 +359,18 @@ function spawnDebris(x, y) {
     game.particles.push({ x, y, vx: Math.cos(d) * s, vy: Math.sin(d) * s - 1, life: rand(20, 45), max: 45 });
   }
 }
+// Ask the browser for fullscreen (hides the URL bar). Works on Android Chrome;
+// on iPhone Safari it's a no-op (use Add to Home Screen for true fullscreen there).
+function goFullscreen() {
+  if (!("ontouchstart" in window || navigator.maxTouchPoints > 0)) return;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+    try { const p = req.call(el); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  }
+}
 function startGame() {
+  goFullscreen();
   hideOverlays();
   settings.difficulty = settings.difficulty;   // (locked in)
   game.playedDiff = settings.difficulty;

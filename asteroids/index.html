@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="robots" content="noindex, nofollow, noarchive">
+<!-- Run fullscreen (no browser URL bar) when added to the iPhone/Android home screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
 <title>Dave Z's Asteroids on Steroids</title>
 <style>
   html, body {
@@ -94,23 +99,32 @@
 
   #hint { margin-top: 12px; font-size: 12px; color: #888; letter-spacing: 1px; text-align: center; }
 
-  /* ---- Mobile controls: overlay the canvas in thumb zones ---- */
+  /* ---- Mobile controls: FIXED to the screen edges, OUTSIDE the canvas ----
+     The 4:3 canvas is centered, leaving side gutters in landscape; the buttons
+     live in those gutters (and the top/bottom margins) so they never cover the
+     play area or the score. Safe-area insets keep them clear of the iPhone notch. */
   #mctl { display: none; }
   .mbtn {
-    position: absolute; z-index: 2; touch-action: none; -webkit-user-select: none; user-select: none;
-    background: rgba(8,18,18,0.42); border: 1.5px solid #0ff; color: #0ff;
+    position: fixed; z-index: 6; touch-action: none; -webkit-user-select: none; user-select: none;
+    background: rgba(8,18,18,0.55); border: 1.5px solid #0ff; color: #0ff;
     border-radius: 12px; font-size: 22px; line-height: 1;
     display: flex; align-items: center; justify-content: center;
   }
-  .mbtn:active { background: rgba(0,110,110,0.6); }
-  .mbtn.on { background: rgba(0,150,150,0.75); }
+  .mbtn:active { background: rgba(0,110,110,0.7); }
+  .mbtn.on { background: rgba(0,150,150,0.8); }
   .mbtn.amber { border-color: #fb0; color: #fb0; }
   .mbtn .lbl { position: absolute; bottom: 3px; font-size: 8px; letter-spacing: 1px; }
-  .topbtn { top: 8px; width: 54px; height: 34px; font-size: 13px; }
-  #mPause { left: 8px; } #mMute { right: 8px; }
-  .act { width: 60px; height: 56px; }
-  .L1 { left: 12px; bottom: 14px; } .L2 { left: 84px; bottom: 14px; }
-  .R1 { right: 12px; bottom: 14px; } .R2 { right: 84px; bottom: 14px; } .R3 { right: 12px; bottom: 84px; }
+  .topbtn { top: calc(env(safe-area-inset-top) + 6px); width: 54px; height: 34px; font-size: 13px; }
+  #mPause { left: calc(env(safe-area-inset-left) + 8px); }
+  #mMute  { right: calc(env(safe-area-inset-right) + 8px); }
+  .act { width: 58px; height: 54px; }
+  /* Left gutter column: rotate-left (bottom), HYPER above it */
+  .L1 { left: calc(env(safe-area-inset-left) + 8px); bottom: 16px; }
+  .L2 { left: calc(env(safe-area-inset-left) + 8px); bottom: 80px; }
+  /* Right gutter column: rotate-right (bottom, farthest out), FIRE, THRUST */
+  .R1 { right: calc(env(safe-area-inset-right) + 8px); bottom: 16px; }
+  .R2 { right: calc(env(safe-area-inset-right) + 8px); bottom: 80px; }
+  .R3 { right: calc(env(safe-area-inset-right) + 8px); bottom: 144px; }
   #rotateMsg {
     position: absolute; inset: 0; z-index: 9; display: none;
     flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -126,11 +140,11 @@
     <div id="mctl">
       <button class="mbtn topbtn" id="mPause">&#10073;&#10073;</button>
       <button class="mbtn topbtn amber" id="mMute">&#9834;</button>
-      <button class="mbtn act L1" data-k="ArrowLeft">&#8634;</button>
-      <button class="mbtn act L2" data-k="ArrowRight">&#8635;</button>
-      <button class="mbtn act R3" id="mHyper">&#10022;<span class="lbl">HYPER</span></button>
-      <button class="mbtn act R2" data-k="ArrowUp">&#9650;<span class="lbl">THRUST</span></button>
-      <button class="mbtn act R1" id="mFire">&#9679;<span class="lbl">FIRE</span></button>
+      <button class="mbtn act L1" data-k="ArrowLeft">&#8634;<span class="lbl">LEFT</span></button>
+      <button class="mbtn act L2" id="mHyper">&#10022;<span class="lbl">HYPER</span></button>
+      <button class="mbtn act R1" data-k="ArrowRight">&#8635;<span class="lbl">RIGHT</span></button>
+      <button class="mbtn act R2" id="mFire">&#9679;<span class="lbl">FIRE</span></button>
+      <button class="mbtn act R3" data-k="ArrowUp">&#9650;<span class="lbl">THRUST</span></button>
     </div>
     <div id="rotateMsg"><div class="big">&#8635;</div><div>ROTATE TO LANDSCAPE</div></div>
 
@@ -661,8 +675,18 @@ function startGame() {
   game.ship = makeShip();
   spawnWave(settings.asteroidCount);
 }
-function startFromMenu() { stopCarousel(); menuEl.style.display = "none"; overEl.style.display = "none"; pauseEl.style.display = "none"; initAudio(); startGame(); }
-function playAgain() { stopCarousel(); overEl.style.display = "none"; pauseEl.style.display = "none"; startGame(); }
+// Ask the browser for fullscreen (hides the URL bar). Works on Android Chrome;
+// on iPhone Safari it's a no-op (use Add to Home Screen for true fullscreen there).
+function goFullscreen() {
+  if (!("ontouchstart" in window || navigator.maxTouchPoints > 0)) return;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+    try { const p = req.call(el); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+  }
+}
+function startFromMenu() { stopCarousel(); goFullscreen(); menuEl.style.display = "none"; overEl.style.display = "none"; pauseEl.style.display = "none"; initAudio(); startGame(); }
+function playAgain() { stopCarousel(); goFullscreen(); overEl.style.display = "none"; pauseEl.style.display = "none"; startGame(); }
 function goMenu() {
   game.state = "menu";
   stopThrustSound(); stopSaucerSound();

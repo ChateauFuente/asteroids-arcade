@@ -90,6 +90,20 @@ Built iteratively in a single development channel; dates reflect that work
   exists at every bus count.
 
 ### Arcade / mobile
+- **Controls moved OUTSIDE the play box (all games).** The on-screen buttons are
+  now `position: fixed` in the screen's side gutters (and top corners) instead of
+  overlaying the 4:3 canvas, so they no longer cover the playfield or the score/HUD
+  on phones. iPhone notch handled via `env(safe-area-inset-*)`. Asteroids: rotate-
+  LEFT bottom-left with HYPER above it; rotate-RIGHT bottom-right (farthest out)
+  with FIRE then THRUST above; PAUSE top-left, MUTE top-right. Stunt Cycle:
+  SLOWER/lean-back left, FASTER/lean-forward right. Lunar Lander: rotate + thrust
+  on each side.
+- **Fullscreen / hide the URL bar.** Tapping START (or PLAY AGAIN) now requests
+  fullscreen, which hides the browser URL bar on Android Chrome. Added
+  `apple-mobile-web-app-capable` / `mobile-web-app-capable` / status-bar /
+  `viewport-fit=cover` meta so that **Add to Home Screen** launches each game in
+  true fullscreen (no URL bar) on iPhone — the reliable iOS path, since Safari
+  ignores the JS fullscreen request.
 - **On-screen thumb controls (all games).** Replaced the button row below the
   canvas with buttons that overlay the play area in thumb zones (shown only during
   play): rotation/secondary on the left, primary actions on the right, and PAUSE
