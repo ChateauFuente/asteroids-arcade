@@ -396,13 +396,17 @@ function resolveContact() {
   stopThrust();
   if (flat && soft) {
     const pts = mult * 100;
-    game.score += pts; if (!game.practice) game.fuel += LAND_FUEL;   // +100 fuel (flat)
-    game.msg = (mult > 1 ? "GOOD LANDING  x" + mult : "GOOD LANDING") + "  +" + pts; game.msgColor = "#0ff";
+    const fuelGain = LAND_FUEL * mult;   // 100 x multiplier (x1 flat ground … x5 pad)
+    game.score += pts; if (!game.practice) game.fuel += fuelGain;
+    game.msg = (mult > 1 ? "GOOD LANDING  x" + mult : "GOOD LANDING") + "  +" + pts +
+               (game.practice ? "" : "  +" + fuelGain + " FUEL"); game.msgColor = "#0ff";
     sndLand();
   } else if (flat && slow) {
     const pts = mult * 30;
-    game.score += pts; if (!game.practice) game.fuel += LAND_FUEL;   // +100 fuel (flat)
-    game.msg = "ROUGH LANDING  +" + pts; game.msgColor = "#ff0";
+    const fuelGain = LAND_FUEL * mult;   // 100 x multiplier
+    game.score += pts; if (!game.practice) game.fuel += fuelGain;
+    game.msg = "ROUGH LANDING  +" + pts +
+               (game.practice ? "" : "  +" + fuelGain + " FUEL"); game.msgColor = "#ff0";
     sndLand();
   } else {
     game.crashed = true; spawnDebris(L.x, L.y);

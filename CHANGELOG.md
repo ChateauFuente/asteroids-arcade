@@ -28,9 +28,10 @@ Built iteratively in a single development channel; dates reflect that work
 - **Smoother camera + new fuel economy.** Smoothed the zoom (drives off an eased
   altitude) so it no longer pumps as the lander passes over terrain bumps. Fuel:
   every game starts at **1000** (same for all levels — difficulty is now gravity +
-  rotation cap), **+100** on a successful landing (flat, not multiplied), **−50**
-  on a crash, **low-fuel warning at ≤100** (red + flashing "LOW FUEL" + beep), game
-  over at 0. Added an **Unlimited Fuel (practice)** menu checkbox — endless, no high
+  rotation cap), **+100 × the pad multiplier** on a successful landing (×1 flat
+  ground … up to ×5 on the smallest pad → +500 fuel), **−50** on a crash,
+  **low-fuel warning at ≤100** (red + flashing "LOW FUEL" + beep), game over at 0.
+  (Was a flat +100 — multiplying the fuel reward lets a good pilot build a reserve.) Added an **Unlimited Fuel (practice)** menu checkbox — endless, no high
   score. Verified by simulation (−50/crash, warning, game-over at 0, ∞ in practice).
 - **Reworked the zoom to keep terrain always in view.** Scale now pins the ground
   near the bottom of the screen (`330/alt`, clamped 0.16–2.2): it stays zoomed out
