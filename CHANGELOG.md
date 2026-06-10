@@ -47,6 +47,16 @@ Built iteratively in a single development channel; dates reflect that work
   changelog unified for the whole arcade.
 
 ### Arcade / backend
+- **Leaderboard API hardened against abuse.** The access key ships in the public
+  client, so the POST endpoint is now treated as untrusted internet input:
+  (1) scores are validated against a **per-game sanity cap** (absurd values are
+  rejected 400), (2) every insert **prunes the board back to the top 5**, so the
+  D1 table physically cannot grow no matter how many scores are posted, and
+  (3) each IP is **rate-limited** (15 posts/min via a small `rate` table → 429).
+  This keeps forged scores harmless: someone can still post *a* competing row
+  (unavoidable with any static client) but can't edit/delete real scores, bloat
+  the table, or run up cost. SQL was already fully parameterized. Verified live
+  (403 / 400 / prune-to-5 / 429 all confirmed).
 - **Shared leaderboard now spans multiple games.** Added a `game` column to the
   D1 table and a `game` param to the Worker API (defaults to `asteroids`), so each
   game keeps its own boards. Asteroids unaffected.

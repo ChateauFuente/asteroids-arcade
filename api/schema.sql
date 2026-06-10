@@ -15,3 +15,11 @@ CREATE TABLE IF NOT EXISTS scores (
 
 -- Fast "top 5 for this game+config" lookups.
 CREATE INDEX IF NOT EXISTS idx_scores_game ON scores (game, config, score DESC);
+
+-- Per-IP POST rate limiting (fixed-window counter). One row per recent IP;
+-- the Worker prunes rows older than an hour, so this stays tiny.
+CREATE TABLE IF NOT EXISTS rate (
+  ip TEXT PRIMARY KEY,
+  ts INTEGER NOT NULL,   -- window start (ms)
+  n  INTEGER NOT NULL    -- posts in the current window
+);
