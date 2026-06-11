@@ -5,6 +5,14 @@ Built iteratively in a single development channel; dates reflect that work
 (2026-06-08). Per-game design details live in each game's `SPEC.md`.
 
 ## [Unreleased]
+### Arcade (hosting)
+- **Moved hosting from GitHub Pages to Cloudflare Workers** so the repo can be
+  private (GitHub Free only serves Pages from public repos). The arcade is now
+  the `daves-arcade` worker serving the repo as static assets (`wrangler.jsonc`
+  + `.assetsignore`); the `?key` gate and noindex/robots protections carry over
+  unchanged. Account subdomain renamed `dave-zoellner-us` → `chateaufuente`;
+  all `LEADERBOARD_API` URLs and the API's `ALLOW_ORIGIN` updated to match.
+
 ### Lunar Lander (new)
 - **Third game added.** Wireframe homage to Atari's 1979 Lunar Lander: fight
   gravity and momentum, manage limited fuel, and set down soft & upright on a

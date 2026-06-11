@@ -160,7 +160,7 @@ api/                  Cloudflare backend (shared, deployed separately):
 
 **Hosting:** front-end = GitHub Pages (`ChateauFuente/daves-arcade`).
 Backend = Cloudflare Worker `arcade-api`
-(https://arcade-api.dave-zoellner-us.workers.dev) + D1 `arcade_leaderboard`,
+(https://arcade-api.chateaufuente.workers.dev) + D1 `arcade_leaderboard`,
 in account dave.zoellner.us@gmail.com. Fully isolated from other projects.
 
 ---

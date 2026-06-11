@@ -18,4 +18,4 @@ database_id = "48018df8-17ef-4d61-83e7-27718fcb5cab"
 # (so it never lives in this file or in git):
 #   wrangler secret put ARCADE_KEY
 [vars]
-ALLOW_ORIGIN = "https://chateaufuente.github.io"
+ALLOW_ORIGIN = "https://daves-arcade.chateaufuente.workers.dev"

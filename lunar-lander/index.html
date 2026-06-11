@@ -240,7 +240,7 @@ function sndCrash() { stopThrust(); noise(0.7, 0.5, 700); tone(80, 0.5, "square"
 // =====================================================================
 //  LEADERBOARD (shared D1, per difficulty)
 // =====================================================================
-const LEADERBOARD_API = "https://arcade-api.dave-zoellner-us.workers.dev";
+const LEADERBOARD_API = "https://arcade-api.chateaufuente.workers.dev";
 const GAME_ID = "lunar-lander";
 const REMOTE_BOARD = LEADERBOARD_API.length > 0;
 function loadLocal() { try { return JSON.parse(localStorage.getItem("lunarLanderScores")) || {}; } catch (e) { return {}; } }

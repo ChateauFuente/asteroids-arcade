@@ -1,0 +1,11 @@
+// Cloudflare Worker config for the arcade itself (static site).
+// Serves the repo's HTML straight from Workers static assets — no build step.
+// The leaderboard API is a separate worker; see api/wrangler.toml.
+// Files listed in .assetsignore are never served.
+{
+  "name": "daves-arcade",
+  "compatibility_date": "2026-06-11",
+  "assets": {
+    "directory": "./"
+  }
+}

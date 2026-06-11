@@ -1,9 +1,10 @@
 # Dave Z's Arcade
 
 A small sandbox arcade of self-contained, wireframe-style browser games. Each
-game is one HTML file — no build step. Hosted on GitHub Pages; gated by an access
-key in the URL (`?key=...`) with a `noindex` tag + `robots.txt` so it stays out
-of search engines. Opening files locally skips the key.
+game is one HTML file — no build step. Hosted on Cloudflare Workers (static
+assets, `daves-arcade` worker) so the GitHub repo can stay private; gated by an
+access key in the URL (`?key=...`) with a `noindex` tag + `robots.txt` so it
+stays out of search engines. Opening files locally skips the key.
 
 The root `index.html` is the **arcade menu** — it lists the games and passes the
 key through to whichever you pick.
@@ -19,6 +20,8 @@ key through to whichever you pick.
 
 ```
 index.html         Arcade menu (game launcher).
+wrangler.jsonc     Cloudflare Worker config: serves this repo as the arcade site.
+.assetsignore      Files the worker must never serve (api/, docs, configs).
 robots.txt         Keeps search engines out.
 CHANGELOG.md       Unified history for the whole arcade + every game.
 README.md          This file.
